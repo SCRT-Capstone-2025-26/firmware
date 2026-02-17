@@ -70,12 +70,12 @@ static RGB MODE_TO_COLOR[] = {
 #define DEBUG_BOOT_DELAY    3000
 
 #define SECONDS_TO_MILLIS 1000.0
-#define GYRO_TO_RADPS     (0.001 * DEG_TO_RAD)
+#define GYRO_TO_RADPS     (0.001f * DEG_TO_RAD)
 
-#define SERVO_FREQ  300.0
-#define SERVO_MIN   0.0
-#define SERVO_MAX   1.0
-#define SERVO_FLUSH 0.3
+#define SERVO_FREQ  300.0f
+#define SERVO_MIN   0.0f
+#define SERVO_MAX   1.0f
+#define SERVO_FLUSH 0.3f
 
 // I don't know why these aren't provided as constants from the library
 // It basically uses a if statement chain on a bunch of floats to figure out

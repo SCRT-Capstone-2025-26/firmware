@@ -38,7 +38,7 @@ RP2040_PWM servo(SERVO_1, (float)SERVO_FREQ, 0.0f);
 
 Millis next_sample;
 const Millis sample_size_ms = 100;
-const double sample_size_s = sample_size_ms / SECONDS_TO_MILLIS;
+const float sample_size_s = sample_size_ms / SECONDS_TO_MILLIS;
 
 void init_pins() {
   // Disable servo power on startup due to inrush
@@ -292,7 +292,7 @@ void update_servo() {
     return;
   }
 
-  double duty_percent = SERVO_FLUSH;
+  float duty_percent = SERVO_FLUSH;
 
   if (board_mode == FLYING) {
     duty_percent = flight_state.get_servo();
@@ -300,8 +300,8 @@ void update_servo() {
     // Just a generic parabola (maxed with 0) to generate the full range of motion over a few seconds
     // It is 0 at 1500 and 4500 millis and peaks at 1 since it is 0 at 1500 millis that gives
     // the servo 1500 to zero since we don't know its position
-    double time = millis_in_mode() / SECONDS_TO_MILLIS;
-    double duty_percent = max(-(time - 1.5) * (time - 4.5) / 2.25, 0.0);
+    float time = millis_in_mode() / SECONDS_TO_MILLIS;
+    float duty_percent = max(-(time - 1.5f) * (time - 4.5f) / 2.25f, 0.0f);
   }
 
   servo.setPWM(SERVO_1, (float)SERVO_FREQ, (float)(duty_percent * SERVO_FREQ));
@@ -311,8 +311,8 @@ void update_servo() {
 // TODO: Add error handling
 void sample_baro() {
   baro.read();
-  double temp = baro.getPressure();
-  double pressure = baro.getTemperature();
+  float temp = baro.getPressure();
+  float pressure = baro.getTemperature();
 
   if (board_mode == FLYING) {
     flight_state.push_baro(temp, pressure, sample_size_s);
@@ -338,9 +338,9 @@ void sample_imu() {
         imu.FIFO_G_Get_Axes(&gyro_axis);
 
         if (board_mode == FLYING) {
-          flight_state.push_gyro(gyro_axis, 1.0 / GYRO_RATE);
+          flight_state.push_gyro(gyro_axis, 1.0f / GYRO_RATE);
         } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-          rest_state.push_gyro(gyro_axis, 1.0 / GYRO_RATE);
+          rest_state.push_gyro(gyro_axis, 1.0f / GYRO_RATE);
         }
 
         break;
@@ -349,9 +349,9 @@ void sample_imu() {
         imu.FIFO_X_Get_Axes(&acc_axis);
 
         if (board_mode == FLYING) {
-          flight_state.push_acc(acc_axis, 1.0 / ACC_RATE);
+          flight_state.push_acc(acc_axis, 1.0f / ACC_RATE);
         } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-          rest_state.push_acc(acc_axis, 1.0 / ACC_RATE);
+          rest_state.push_acc(acc_axis, 1.0f / ACC_RATE);
         }
 
         break;

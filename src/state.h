@@ -14,19 +14,19 @@
 // TODO: Currently the units are really dumb and should be converted
 
 struct FlightState {
-  Eigen::Quaterniond rot;
+  Eigen::Quaternionf rot;
   // Units in mg * ms
-  Eigen::Vector3d vel;
+  Eigen::Vector3f vel;
   // Units in mg * ms * ms
-  Eigen::Vector3d pos;
+  Eigen::Vector3f pos;
 
   FlightState() {}
 
-  void push_baro(double pressure, double temperature, double sample_rate);
-  void push_acc(ISM6HG256X_Axes_t &acc, double sample_rate);
-  void push_gyro(ISM6HG256X_Axes_t &gyro, double sample_rate);
+  void push_baro(float pressure, float temperature, float sample_rate);
+  void push_acc(ISM6HG256X_Axes_t &acc, float sample_rate);
+  void push_gyro(ISM6HG256X_Axes_t &gyro, float sample_rate);
 
-  double get_servo();
+  float get_servo();
 
   bool done();
 };
@@ -35,16 +35,16 @@ struct RestState {
   // There is a degree of freedom (roll I believe) since this is based
   // On the accelerometer originally so y is perpendicular to the ground
   // After applying this rotation to a sampled accelerometer reading
-  Eigen::Quaterniond rot = Eigen::Quaterniond(0.0, 0.0, 0.0, 0.0);
-  double acceleration;
+  Eigen::Quaternionf rot = Eigen::Quaternionf(0.0f, 0.0f, 0.0f, 0.0f);
+  float acceleration;
 
   bool inited = false;
 
   RestState() {}
 
-  void push_baro(double pressure, double temperature, double sample_rate);
-  void push_acc(ISM6HG256X_Axes_t &acc, double sample_rate);
-  void push_gyro(ISM6HG256X_Axes_t &gyro, double sample_rate);
+  void push_baro(float pressure, float temperature, float sample_rate);
+  void push_acc(ISM6HG256X_Axes_t &acc, float sample_rate);
+  void push_gyro(ISM6HG256X_Axes_t &gyro, float sample_rate);
 
   // Returns true if the rocket is flying and inits the flight state to that
   bool try_init_flying(FlightState &state);
