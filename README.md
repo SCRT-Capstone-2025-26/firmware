@@ -15,7 +15,7 @@ This board is undergoing hardware redesign so this code is in flux.
 
 This firmware uses a platformio build system which can be installed [here](https://platformio.org/).
 
-This can be run on a BEAVS 2026 board through ``pio run -t upload`` and in debug mode through ``pio run -e debug -t upload`` once you have platformio setup.
+This can be run on a BEAVS 2026 board through ``pio run -e release -t upload`` and in debug mode through ``pio run -e debug -t upload`` once you have platformio setup.
 
 ## Team
 
