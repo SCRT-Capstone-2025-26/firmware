@@ -338,9 +338,9 @@ void sample_imu() {
         imu.FIFO_G_Get_Axes(&gyro_axis);
 
         if (board_mode == FLYING) {
-          flight_state.push_gyro(gyro_axis, 1.0f / GYRO_RATE);
+          flight_state.push_gyro(gyro_axis);
         } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-          rest_state.push_gyro(gyro_axis, 1.0f / GYRO_RATE);
+          rest_state.push_gyro(gyro_axis);
         }
 
         break;
@@ -349,9 +349,9 @@ void sample_imu() {
         imu.FIFO_X_Get_Axes(&acc_axis);
 
         if (board_mode == FLYING) {
-          flight_state.push_acc(acc_axis, 1.0f / ACC_RATE);
+          flight_state.push_acc(acc_axis);
         } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-          rest_state.push_acc(acc_axis, 1.0f / ACC_RATE);
+          rest_state.push_acc(acc_axis);
         }
 
         break;

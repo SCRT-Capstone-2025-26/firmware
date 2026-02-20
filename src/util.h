@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <cmath>
+#include <ArduinoEigen.h>
 
 #include "led.h"
 
@@ -85,7 +86,26 @@ static RGB MODE_TO_COLOR[] = {
 #define GYRO_RATE 960.0f
 #define ACC_RATE  960.0f
 
-#define GRAVITY_ACC 9.81f
+// TODO: Update these
+#define GRAVITY_ACC       9.80665f
+// This is low for testing
+// The amount of acc from normal gravity required to consider
+//  it a launch
+#define LAUNCH_ACC        0.3f
+// The number of samples that fit the launch criteria
+//  to actually transition to launch
+#define LAUNCH_SAMPLE_REQ 30
+// A big history can easily take up a lot of the kinda limited ram
+// The seconds of imu data to have in a rolling buffer so that after
+//  launch is detected the first few moments of launch
+// If this is big enough that it takes a while to compute
+//  the code will have to change
+#define LAUNCH_HIST_S     0.4f
+// We need to determine the rotation before launch from
+//  some accelerometer data so we put that in the circular buffer as well
+#define ROT_HIST_SAMPLES  30
+
+const Eigen::Vector3f LOCAL_UP(0.0f, 0.0f, -1.0f);
 
 bool delay_to(Millis target_time);
 

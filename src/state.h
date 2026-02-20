@@ -5,6 +5,9 @@
 
 #include <ISM6HG256XSensor.h>
 #include <ArduinoEigen.h>
+#include <CircularBuffer.hpp>
+#include <cstdint>
+#include <tuple>
 
 // These classes define code that handles the rocket's physical state when in rest and in flight
 // The rest state also detects the transisition to flying
@@ -23,8 +26,8 @@ struct FlightState {
   FlightState() {}
 
   void push_baro(float pressure, float temperature, float sample_rate);
-  void push_acc(ISM6HG256X_Axes_t &acc, float sample_rate);
-  void push_gyro(ISM6HG256X_Axes_t &gyro, float sample_rate);
+  void push_acc(ISM6HG256X_Axes_t &acc);
+  void push_gyro(ISM6HG256X_Axes_t &gyro);
 
   float get_servo();
 
@@ -32,19 +35,23 @@ struct FlightState {
 };
 
 struct RestState {
-  // There is a degree of freedom (roll I believe) since this is based
-  // On the accelerometer originally so y is perpendicular to the ground
-  // After applying this rotation to a sampled accelerometer reading
-  Eigen::Quaternionf rot = Eigen::Quaternionf(0.0f, 0.0f, 0.0f, 0.0f);
-  float acceleration;
+  // TODO: Maybe have a barometer buffer
 
-  bool inited = false;
+  // These hold the data collected by the imu because when the launch
+  //  happens it will be detected a bit late due to filtering out false
+  //  positives
+  // This is a huge ram sink, but should be fine
+  CircularBuffer<Vector3f, (uint16_t)(ACC_RATE * LAUNCH_HIST_S) + ROT_HIST_SAMPLES> acc_buf;
+  CircularBuffer<Vector3f, (uint16_t)(GYRO_RATE * LAUNCH_HIST_S)> gyro_buf;
+
+  // The number of samples in a row that have registered a launch
+  int launch_samples = 0;
 
   RestState() {}
 
   void push_baro(float pressure, float temperature, float sample_rate);
-  void push_acc(ISM6HG256X_Axes_t &acc, float sample_rate);
-  void push_gyro(ISM6HG256X_Axes_t &gyro, float sample_rate);
+  void push_acc(ISM6HG256X_Axes_t &acc);
+  void push_gyro(ISM6HG256X_Axes_t &gyro);
 
   // Returns true if the rocket is flying and inits the flight state to that
   bool try_init_flying(FlightState &state);
