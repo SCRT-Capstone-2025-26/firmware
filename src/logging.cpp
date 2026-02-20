@@ -10,6 +10,7 @@
 #include "util.h"
 
 // This file handles the code that runs on the other core and handles the logging for Beavs
+// TODO: Look into real string generation instead of just adding strings together
 
 // See https://stackoverflow.com/questions/64017982/c-equivalent-of-rust-enums
 // This allows rust like enums with the c++ variant
@@ -158,12 +159,12 @@ void handle_data_event(DataEvent event) {
   if (!sd_failure) {
     String content =
       String(event.timestamp) + "," +
-      String(event.reading.acc_axis.x) + "," +
-      String(event.reading.acc_axis.y) + "," +
-      String(event.reading.acc_axis.z) + "," +
-      String(event.reading.gyro_axis.x) + "," +
-      String(event.reading.gyro_axis.y) + "," +
-      String(event.reading.gyro_axis.z);
+      String(event.reading.acc_axis.x, 6) + "," +
+      String(event.reading.acc_axis.y, 6) + "," +
+      String(event.reading.acc_axis.z, 6) + "," +
+      String(event.reading.gyro_axis.x, 6) + "," +
+      String(event.reading.gyro_axis.y, 6) + "," +
+      String(event.reading.gyro_axis.z, 6);
 
     data_file.println(content);
     data_file.flush();

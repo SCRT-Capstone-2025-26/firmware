@@ -25,7 +25,7 @@ void FlightState::push_acc(ISM6HG256X_Axes_t &acc, float sample_rate) {
 void FlightState::push_gyro(ISM6HG256X_Axes_t &gyro, float sample_rate) {
   // See https://stackoverflow.com/questions/23503151/how-to-update-quaternion-based-on-3d-gyro-data
   // I think this is based on the approximation sin(x) == x
-  Eigen::Quaternionf w(0, gyro.x * GYRO_TO_RADPS, gyro.y * GYRO_TO_RADPS, gyro.z * GYRO_TO_RADPS);
+  Eigen::Quaternionf w(0, gyro.x, gyro.y, gyro.z);
   rot.coeffs() += 0.5 * sample_rate * (rot * w).coeffs();
   rot.normalize();
 }
@@ -82,7 +82,7 @@ bool RestState::try_init_flying(FlightState &state) {
     return false;
   }
 
-  if (abs(acceleration - GRAVITY_ACC) > 60) {
+  if (abs(acceleration - GRAVITY_ACC) > 0.3f) {
     state.rot = rot;
     state.vel = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
     state.pos = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
