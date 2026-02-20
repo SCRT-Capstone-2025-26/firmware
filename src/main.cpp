@@ -239,7 +239,7 @@ void update_mode() {
       break;
 
     case UNARMED:
-      if (digitalRead(ARM_SWITCH) == HIGH) {
+      if (digitalRead(ARM_SWITCH) == LOW) {
         push_mode(ARMED);
       }
 
@@ -252,7 +252,7 @@ void update_mode() {
         push_mode(FLYING);
       }
 
-      if (digitalRead(ARM_SWITCH) == LOW) {
+      if (digitalRead(ARM_SWITCH) == HIGH) {
         push_mode(UNARMED);
       }
 
