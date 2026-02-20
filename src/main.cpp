@@ -3,7 +3,6 @@
 #include <MS5611_SPI.h>
 #include <SPI.h>
 #include <RP2040_PWM.h>
-#include <cmath>
 #include <hardware/watchdog.h>
 #include <cstdint>
 #include <cmath>
@@ -21,6 +20,8 @@
 
 // NOTE: This code uses millis() extensively and assumes it will not overflow (it will overflow in >40 days and that is not intended usage)
 // TODO: Look into pressure drop when hitting around mach numbers
+// TODO: Look at the readability of the watchdog feeding
+// TODO: Look into writing to flash for reboots (this is probably not useful since the time is reset)
 
 #define SERVO_CHARGE_MILLIS 2000
 #define UNKNOWN_WAIT        2000

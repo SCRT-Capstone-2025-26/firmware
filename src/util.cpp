@@ -1,5 +1,6 @@
 #include "util.h"
 
+<<<<<<< HEAD
 #include <cstdint>
 #include <hardware/watchdog.h>
 
@@ -25,16 +26,32 @@ void sleep(Millis target_time) {
   while (target_time > HALF_WATCHDOG_MS) {
     target_time -= HALF_WATCHDOG_MS;
     delay(HALF_WATCHDOG_MS);
+=======
+#include <hardware/watchdog.h>
+
+bool sleep(Millis target_time) {
+  watchdog_update();
+
+  while (target_time > (WATCHDOG_MS / 2)) {
+    delay(WATCHDOG_MS / 2);
+>>>>>>> 29b4fbc (watchdog outline)
     watchdog_update();
   }
 
   delay(target_time);
 
   watchdog_update();
+<<<<<<< HEAD
 }
 
 // Returns false if the time is in the past
 // Feeds the watchdog while sleeping
+=======
+  return in_future;
+}
+
+// Returns false if the time is in the past
+>>>>>>> 29b4fbc (watchdog outline)
 bool sleep_to(Millis target_time) {
   Millis curr = millis();
 
