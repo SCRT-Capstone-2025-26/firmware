@@ -9,6 +9,8 @@
 // NOTE: We could calibrate the sensors in RestState, instead of pre calibrating them (this neither calibration
 //  version has been implmented yet)
 
+// TODO: Velocity used in the lookup table is relative to the rocket not earth
+
 void FlightState::push_baro(float pressure, float temperature, float sample_rate) {
 }
 
