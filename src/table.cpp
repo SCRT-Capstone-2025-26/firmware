@@ -9,8 +9,7 @@ float linear_interp(float x, float x0, float x1, float y0, float y1) {
   float dx = x0 - x1;
   float dy = y0 - y1;
 
-  // The * (1.0f / x) is for gcc to optimize the div (if constants propogate)
-  float m = dy * (1.0f / dx);
+  float m = dy / dx;
   return (m * (x - x0)) + y0;
 }
 
