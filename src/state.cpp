@@ -19,6 +19,7 @@ void FlightState::push_acc(Eigen::Vector3f &&acc) {
   // This is just simple integration (not even like trapezoidal)
   // This will be changed
 
+  acc -= ACC_BIAS;
   // Rotate the vector into the world frame
   acc = rot * acc;
   // Remove the fictitious gravity force
@@ -32,6 +33,8 @@ void FlightState::push_acc(Eigen::Vector3f &&acc) {
 }
 
 void FlightState::push_gyro(Eigen::Vector3f &&gyro) {
+  gyro -= GYRO_BIAS;
+
   // See https://stackoverflow.com/questions/23503151/how-to-update-quaternion-based-on-3d-gyro-data
   // I think this is based on the approximation sin(x) == x
   Eigen::Quaternionf w(0, gyro.x(), gyro.y(), gyro.z());
@@ -71,7 +74,7 @@ void RestState::push_acc(Eigen::Vector3f &&acc) {
   //  launch_samples to count the amount we have recieved in a row
   // If not we reset it to 0 since we has seen 0 in a row
   // It probably wouldn't matter to use a norm sqrd, but RestState is not performance sensitive
-  if (std::abs(acc.norm() - GRAVITY_ACC) >= LAUNCH_ACC) {
+  if (std::abs((acc - ACC_BIAS).norm() - GRAVITY_ACC) >= LAUNCH_ACC) {
     launch_samples++;
   } else {
     launch_samples = 0;

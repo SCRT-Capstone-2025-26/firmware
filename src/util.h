@@ -87,8 +87,10 @@ static RGB MODE_TO_COLOR[] = {
 #define GYRO_RATE 960.0f
 #define ACC_RATE  960.0f
 
+// 9.80665f is the ISO value of little g
+// The currently value is calibrated
 // TODO: Update these
-#define GRAVITY_ACC       9.80665f
+#define GRAVITY_ACC       9.782978212113562
 // This is low for testing
 // The amount of acc from normal gravity required to consider
 //  it a launch
@@ -109,6 +111,9 @@ static RGB MODE_TO_COLOR[] = {
 #define ROT_HIST_SAMPLES  30
 
 const Eigen::Vector3f LOCAL_UP(0.0f, 0.0f, -1.0f);
+
+const Eigen::Vector3f ACC_BIAS(0.008095040980820646f, -0.07066856444586497f, -0.06873988143672187f);
+const Eigen::Vector3f GYRO_BIAS(0.0020154851083784846f, 0.0032312920667005307f, -0.002640418776621421f);
 
 bool delay_to(Millis target_time);
 
