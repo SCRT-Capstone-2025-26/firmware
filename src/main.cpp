@@ -3,6 +3,7 @@
 #include <MS5611_SPI.h>
 #include <SPI.h>
 #include <RP2040_PWM.h>
+#include <cmath>
 #include <cstdint>
 
 #include "pins.h"
@@ -338,9 +339,9 @@ void sample_imu() {
         imu.FIFO_G_Get_Axes(&gyro_axis);
 
         if (board_mode == FLYING) {
-          flight_state.push_gyro(gyro_axis);
+          flight_state.push_gyro(Eigen::Vector3f(gyro_axis.x, gyro_axis.y, gyro_axis.z));
         } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-          rest_state.push_gyro(gyro_axis);
+          rest_state.push_gyro(Eigen::Vector3f(gyro_axis.x, gyro_axis.y, gyro_axis.z));
         }
 
         break;
@@ -349,9 +350,9 @@ void sample_imu() {
         imu.FIFO_X_Get_Axes(&acc_axis);
 
         if (board_mode == FLYING) {
-          flight_state.push_acc(acc_axis);
+          flight_state.push_acc(Eigen::Vector3f(acc_axis.x, acc_axis.y, acc_axis.z));
         } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-          rest_state.push_acc(acc_axis);
+          rest_state.push_acc(Eigen::Vector3f(acc_axis.x, acc_axis.y, acc_axis.z));
         }
 
         break;
@@ -360,6 +361,11 @@ void sample_imu() {
         break;
     }
   }
+
+#ifdef CALIBRATION
+  write_calib(AccCalib{acc_axis});
+  write_calib(GyroCalib{gyro_axis});
+#endif
 }
 
 // This handles what the board should do when it has reached a critical failure

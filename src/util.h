@@ -8,6 +8,7 @@
 #include "led.h"
 
 typedef unsigned long Millis;
+typedef unsigned long Micros;
 
 // Booting = The board is initializing components in the setup function (which could be run on a power failure or watchdog reboot)
 // Unknown = Right after booting to determine if the board is flying right now or not
@@ -100,6 +101,8 @@ static RGB MODE_TO_COLOR[] = {
 //  launch is detected the first few moments of launch
 // If this is big enough that it takes a while to compute
 //  the code will have to change
+// This must capture the whole launch so data used in the ROT_HIST_SAMPLES
+//  is not launch data
 #define LAUNCH_HIST_S     0.4f
 // We need to determine the rotation before launch from
 //  some accelerometer data so we put that in the circular buffer as well

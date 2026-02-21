@@ -26,8 +26,8 @@ struct FlightState {
   FlightState() {}
 
   void push_baro(float pressure, float temperature, float sample_rate);
-  void push_acc(ISM6HG256X_Axes_t &acc);
-  void push_gyro(ISM6HG256X_Axes_t &gyro);
+  void push_acc(Eigen::Vector3f &&acc);
+  void push_gyro(Eigen::Vector3f &&gyro);
 
   float get_servo();
 
@@ -41,8 +41,8 @@ struct RestState {
   //  happens it will be detected a bit late due to filtering out false
   //  positives
   // This is a huge ram sink, but should be fine
-  CircularBuffer<Vector3f, (uint16_t)(ACC_RATE * LAUNCH_HIST_S) + ROT_HIST_SAMPLES> acc_buf;
-  CircularBuffer<Vector3f, (uint16_t)(GYRO_RATE * LAUNCH_HIST_S)> gyro_buf;
+  CircularBuffer<Eigen::Vector3f, (uint16_t)(ACC_RATE * LAUNCH_HIST_S) + ROT_HIST_SAMPLES> acc_buf;
+  CircularBuffer<Eigen::Vector3f, (uint16_t)(GYRO_RATE * LAUNCH_HIST_S)> gyro_buf;
 
   // The number of samples in a row that have registered a launch
   int launch_samples = 0;
@@ -50,8 +50,8 @@ struct RestState {
   RestState() {}
 
   void push_baro(float pressure, float temperature, float sample_rate);
-  void push_acc(ISM6HG256X_Axes_t &acc);
-  void push_gyro(ISM6HG256X_Axes_t &gyro);
+  void push_acc(Eigen::Vector3f &&acc);
+  void push_gyro(Eigen::Vector3f &&gyro);
 
   // Returns true if the rocket is flying and inits the flight state to that
   bool try_init_flying(FlightState &state);

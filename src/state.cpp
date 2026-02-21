@@ -15,22 +15,26 @@
 void FlightState::push_baro(float pressure, float temperature, float sample_rate) {
 }
 
-void FlightState::push_acc(ISM6HG256X_Axes_t &acc) {
+void FlightState::push_acc(Eigen::Vector3f &&acc) {
   // This is just simple integration (not even like trapezoidal)
   // This will be changed
+
+  // Rotate the vector into the world frame
+  acc = rot * acc;
+  // Remove the fictitious gravity force
+  acc.y() += GRAVITY_ACC;
 
   // Written like (1.0f / x) to ensure gcc optmizes to a multiply
   pos += vel * (1.0f / ACC_RATE);
 
-  Eigen::Vector3f acc_vec(acc.x, acc.y, acc.z);
   // Written like (1.0f / x) to ensure gcc optmizes to a multiply
-  vel += (rot * acc_vec) * (1.0f / ACC_RATE);
+  vel += acc * (1.0f / ACC_RATE);
 }
 
-void FlightState::push_gyro(ISM6HG256X_Axes_t &gyro) {
+void FlightState::push_gyro(Eigen::Vector3f &&gyro) {
   // See https://stackoverflow.com/questions/23503151/how-to-update-quaternion-based-on-3d-gyro-data
   // I think this is based on the approximation sin(x) == x
-  Eigen::Quaternionf w(0, gyro.x, gyro.y, gyro.z);
+  Eigen::Quaternionf w(0, gyro.x(), gyro.y(), gyro.z());
   // Written like (1.0f / x) to ensure gcc optmizes to a multiply
   rot.coeffs() += 0.5f * (1.0f / GYRO_RATE) * (rot * w).coeffs();
   rot.normalize();
@@ -57,21 +61,25 @@ bool FlightState::done() {
   return false;
 }
 
-void RestState::push_baro(float pressure, float temperature) {
+void RestState::push_baro(float pressure, float temperature, float sample_rate) {
 }
 
-void RestState::push_acc(ISM6HG256X_Axes_t &acc) {
-  acc_buf.push(Eigen::Vector3f(acc.x, acc.y, acc.z));
+void RestState::push_acc(Eigen::Vector3f &&acc) {
+  acc_buf.push(acc);
 
-  if (std::abs(acc_vec.norm() - GRAVITY_ACC) > 0.3f) {
+  // If have an acceleration greater than launch acc we mark it by increasing
+  //  launch_samples to count the amount we have recieved in a row
+  // If not we reset it to 0 since we has seen 0 in a row
+  // It probably wouldn't matter to use a norm sqrd, but RestState is not performance sensitive
+  if (std::abs(acc.norm() - GRAVITY_ACC) >= LAUNCH_ACC) {
     launch_samples++;
   } else {
     launch_samples = 0;
   }
 }
 
-void RestState::push_gyro(ISM6HG256X_Axes_t &gyro) {
-  gyro_buf.push(Eigen::Vector3f(gyro.x, gyro.y, gyro.z));
+void RestState::push_gyro(Eigen::Vector3f &&gyro) {
+  gyro_buf.push(gyro);
 }
 
 bool RestState::try_init_flying(FlightState &state) {
@@ -87,7 +95,7 @@ bool RestState::try_init_flying(FlightState &state) {
   // We don't care about magnitude since it is a direction
   Eigen::Vector3f down(0.0f, -1.0f, 0.0f);
 
-  decltype(acc_buf)::index_t rot_samples_size = std::min(ROT_HIST_SAMPLES, acc_buf.size());
+  decltype(acc_buf)::index_t rot_samples_size = min(ROT_HIST_SAMPLES, acc_buf.size());
   Eigen::Vector3f acc_vec(0.0f, 0.0f, 0.0f);
   for (int i = 0; i < rot_samples_size; i++) {
     acc_vec += acc_buf.shift();
@@ -109,18 +117,18 @@ bool RestState::try_init_flying(FlightState &state) {
   // If the rates are different it would have to be implmented differently (with simulated times for acc and gyro)
   static_assert(ACC_RATE == GYRO_RATE, "Different accelerometer and gyro rate not implmented here");
   while (!acc_buf.isEmpty() && !gyro_buf.isEmpty()) {
-    state.push_acc(acc_buf.shift())
-    state.push_gyro(gyro_buf.shift())
+    state.push_acc(acc_buf.shift());
+    state.push_gyro(gyro_buf.shift());
   }
 
   // Finish adding acc data if left
   while (!acc_buf.isEmpty()) {
-    state.push_acc(acc_buf.shift())
+    state.push_acc(acc_buf.shift());
   }
 
   // Finish adding gyro data if left
   while (!gyro_buf.isEmpty()) {
-    state.push_gyro(gyro_buf.shift())
+    state.push_gyro(gyro_buf.shift());
   }
 
   return true;
