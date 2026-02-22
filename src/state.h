@@ -18,6 +18,7 @@
 
 struct FlightState {
   Eigen::Quaternionf rot;
+  Eigen::Vector3f acc;
   // Units in mg * ms
   Eigen::Vector3f vel;
   // Units in mg * ms * ms

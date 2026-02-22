@@ -1,4 +1,5 @@
 #include "state.h"
+
 #include "util.h"
 
 #include "logging.h"
@@ -23,13 +24,17 @@ void FlightState::push_acc(Eigen::Vector3f &&acc) {
   // Rotate the vector into the world frame
   acc = rot * acc;
   // Remove the fictitious gravity force
-  acc.y() += GRAVITY_ACC;
+  acc.y() -= GRAVITY_ACC;
+  this->acc = acc;
 
-  // Written like (1.0f / x) to ensure gcc optmizes to a multiply
-  pos += vel * (1.0f / ACC_RATE);
+  // Update vel first may not be "correct", but it is more stable I believe due to something
+  //  with energy
 
   // Written like (1.0f / x) to ensure gcc optmizes to a multiply
   vel += acc * (1.0f / ACC_RATE);
+
+  // Written like (1.0f / x) to ensure gcc optmizes to a multiply
+  pos += vel * (1.0f / ACC_RATE);
 }
 
 void FlightState::push_gyro(Eigen::Vector3f &&gyro) {
@@ -57,8 +62,9 @@ bool FlightState::done() {
 
   // Since both are unit vectors we can use dot product to compute the cosine between them
   // Hopefully cos gets optimized
+  // TODO: This maybe shouldn't just be an immediate shutoff
   if (up.dot(rocket_up) < std::cos(30.0f * DEG_TO_RAD)) {
-    return true;
+    return true && false;
   }
 
   return false;
@@ -74,6 +80,7 @@ void RestState::push_acc(Eigen::Vector3f &&acc) {
   //  launch_samples to count the amount we have recieved in a row
   // If not we reset it to 0 since we has seen 0 in a row
   // It probably wouldn't matter to use a norm sqrd, but RestState is not performance sensitive
+  // TODO: Could be better to require some percentage of samples be launch detections
   if (std::abs((acc - ACC_BIAS).norm() - GRAVITY_ACC) >= LAUNCH_ACC) {
     launch_samples++;
   } else {
@@ -86,17 +93,21 @@ void RestState::push_gyro(Eigen::Vector3f &&gyro) {
 }
 
 bool RestState::try_init_flying(FlightState &state) {
-  if (launch_samples < LAUNCH_SAMPLE_REQ) {
+  // If it is not launch time we just return early
+  if (launch_samples < LAUNCH_SAMPLE_REQ && false) {
     return false;
   }
+
+  // Otherwise we create the flight state
 
   // We want to find that q such that when we rotate an accelerometer reading by q
   // it gets transformed into the coordinate frame where y is up
   // We don't care about what the gyro says in the rest state sense we have a method to determine the absolute rotation
+  // Since we know that gravity creates a fictitious force up at 9.81 we want the rotation that takes our
+  //  acceleration (assumed to just be gravity once bias is removed) and rotates it in the up direction
+  // That creates the rotation that takes rocket coordinates and turns them into world coordinates
 
-  // This is the vector that gravity actually points when the board is facing up (the accelerometer is mounted at an angle)
-  // We don't care about magnitude since it is a direction
-  Eigen::Vector3f down(0.0f, -1.0f, 0.0f);
+  Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
 
   decltype(acc_buf)::index_t rot_samples_size = min(ROT_HIST_SAMPLES, acc_buf.size());
   Eigen::Vector3f acc_vec(0.0f, 0.0f, 0.0f);
@@ -106,9 +117,12 @@ bool RestState::try_init_flying(FlightState &state) {
 
   // Normally we would need to average these, but in this cases average doesn't change the angle so we don't
   // acc_vec /= rot_samples_size;
+  // acc_vec is so far biased so we have to unbias it since we are not normalizing it we can just
+  //  use a multiply
+  acc_vec -= ACC_BIAS * rot_samples_size;
 
   // The rotation that takes acc and turns it into down
-  state.rot = Eigen::Quaternionf::FromTwoVectors(acc_vec, down);
+  state.rot = Eigen::Quaternionf::FromTwoVectors(acc_vec, up);
 
   state.pos = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
   state.vel = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
@@ -118,6 +132,8 @@ bool RestState::try_init_flying(FlightState &state) {
   //  the same number of observations from each so we can just feed
   //  one then the other
   // If the rates are different it would have to be implmented differently (with simulated times for acc and gyro)
+  // TODO: This has a probablem where if there is a desync (ie one value is pushed early or something then it messes
+  //  everything up). This should be fixed by using one before with a typed union to keep the order
   static_assert(ACC_RATE == GYRO_RATE, "Different accelerometer and gyro rate not implmented here");
   while (!acc_buf.isEmpty() && !gyro_buf.isEmpty()) {
     state.push_acc(acc_buf.shift());
