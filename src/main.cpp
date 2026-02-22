@@ -142,8 +142,8 @@ void setup() {
 
   // The radio is not currently used (or installed) so we just set the led to mark that (neutral is blue which is visible)
   leds[LED_RADIO] = LED_NEUTRAL;
-  // Same with the magnetometer
-  leds[LED_MAGN] = LED_NEUTRAL;
+  // Whether or not the watchdog has been triggered
+  leds[LED_WATCHDOG] = watchdog_caused_reboot() ? LED_NEGATIVE : LED_POSITIVE;
   led_show();
 
   // Initialize the LED the rp2040 has two SPIs and we init the first one to be able to communicate to the sensors
