@@ -363,8 +363,8 @@ void sample_imu() {
   }
 
 #ifdef CALIBRATION
-  write_calib(AccCalib{acc_axis});
-  write_calib(GyroCalib{gyro_axis});
+  write_calib(AccCalib(acc_axis));
+  write_calib(GyroCalib(gyro_axis));
 #endif
 }
 
