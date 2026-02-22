@@ -14,19 +14,32 @@
 
 // Position is has y perpendicular to the ground
 
-// TODO: Currently the units are really dumb and should be converted
+// TODO: Explain filter somewhere
 
 struct FlightState {
   Eigen::Quaternionf rot;
-  Eigen::Vector3f acc;
-  // Units in mg * ms
-  Eigen::Vector3f vel;
-  // Units in mg * ms * ms
-  Eigen::Vector3f pos;
+
+  // 0 is height in world frame, 1 is velocity in rocket frame
+  Eigen::Vector2f state;
+  // Noise of the state
+  Eigen::Matrix2f cov;
+  // The observation vector for the baro
+  Eigen::Vector2f obser = Eigen::Vector2f(1.0f, 0.0f);
+  // Noise from baro observations
+  float obser_noise = 1.0f;
+  // We treat acceleration as a control
+  // The first entry has to be updated when using since it depends on zenith
+  Eigen::Vector2f control = Eigen::Vector2f(0.0f, 1.0f / ACC_RATE);
+  // Noise from acceleration
+  Eigen::Matrix2f control_noise;
+  // State transisition matrix (1, cos(zenith) * dt, 0, 1)
+  // The top right value has to be updated when using since it depends on zenith
+  Eigen::Matrix2f trans = Eigen::Matrix2f(1.0f, 0.0f, 0.0f, 1.0f);
+
 
   FlightState() {}
 
-  void push_baro(float pressure, float temperature, float sample_rate);
+  void push_baro(float pressure, float temperature);
   void push_acc(Eigen::Vector3f &&acc);
   void push_gyro(Eigen::Vector3f &&gyro);
 
@@ -36,8 +49,6 @@ struct FlightState {
 };
 
 struct RestState {
-  // TODO: Maybe have a barometer buffer
-
   // These hold the data collected by the imu because when the launch
   //  happens it will be detected a bit late due to filtering out false
   //  positives
@@ -50,7 +61,7 @@ struct RestState {
 
   RestState() {}
 
-  void push_baro(float pressure, float temperature, float sample_rate);
+  void push_baro(float pressure, float temperature);
   void push_acc(Eigen::Vector3f &&acc);
   void push_gyro(Eigen::Vector3f &&gyro);
 

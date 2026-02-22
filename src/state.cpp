@@ -11,30 +11,48 @@
 // NOTE: We could calibrate the sensors in RestState, instead of pre calibrating them (this neither calibration
 //  version has been implmented yet)
 
-// TODO: Velocity used in the lookup table is relative to the rocket not earth
+// TODO: It would make more sense to store the baro input and then wait until
+//  the imu reads data at a time past the baro read time and then apply the baro data
+//  that way it is always correclty applied at the right time
 
-void FlightState::push_baro(float pressure, float temperature, float sample_rate) {
+void FlightState::push_baro(float pressure, float temperature) {
+  // Estimate from pressure and temperature
+  float height = 0.0f;
+
+  // Standard Kalman update
+
+  float a = obser_noise - (obser.transpose() * state);
+  Eigen::Matrix2f b = cov * obser;
+  float c = (obser.transpose() * b) + height;
+  Eigen::Vector2f K = b / c;
+
+  state = state + (K * a);
+  cov = (Eigen::Matrix2f::Identity() - (K * obser.transpose())) * cov;
 }
 
 void FlightState::push_acc(Eigen::Vector3f &&acc) {
-  // This is just simple integration (not even like trapezoidal)
-  // This will be changed
-
   acc -= ACC_BIAS;
   // Rotate the vector into the world frame
   acc = rot * acc;
   // Remove the fictitious gravity force
-  acc.y() -= GRAVITY_ACC;
-  this->acc = acc;
+  acc -= rot.inverse() * Eigen::Vector3f(0.0f, GRAVITY_ACC, 0.0f);
 
-  // Update vel first may not be "correct", but it is more stable I believe due to something
-  //  with energy
+  float forward_acc = acc * LOCAL_UP;
 
-  // Written like (1.0f / x) to ensure gcc optmizes to a multiply
-  vel += acc * (1.0f / ACC_RATE);
+  // Since this is called regularly with a frequency of ACC_RATE we update the
+  //  state and use acc as a control input
 
-  // Written like (1.0f / x) to ensure gcc optmizes to a multiply
-  pos += vel * (1.0f / ACC_RATE);
+  // To compute cos(zenith) we need to magnitude of the rotation of rot (ie theta)
+  // Since w = cos(theta / 2) a trig identiy saves us a trig call
+  // cos(2A) = 2cos(A)^2 - 1
+  float cosZenith = (2.0f * rot.w() * rot.w()) - 1;
+  // cos(zenith) * dt
+  trans(0, 1) = cosZenith * (1.0f / ACC_RATE);
+  // 1/2 * cos(zenith) * dt^2
+  control(1) = 0.5f * cosZenith * (1.0f / ACC_RATE) * (1.0f / ACC_RATE);
+
+  state = (trans * state) * (control * forward_acc);
+  cov = (trans * cov * trans.transpose()) + control_noise;
 }
 
 void FlightState::push_gyro(Eigen::Vector3f &&gyro) {
@@ -70,7 +88,7 @@ bool FlightState::done() {
   return false;
 }
 
-void RestState::push_baro(float pressure, float temperature, float sample_rate) {
+void RestState::push_baro(float pressure, float temperature) {
 }
 
 void RestState::push_acc(Eigen::Vector3f &&acc) {
