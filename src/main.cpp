@@ -240,7 +240,7 @@ void update_mode() {
 
     case UNARMED:
       if (digitalRead(ARM_SWITCH) == LOW) {
-        // push_mode(ARMED);
+        push_mode(ARMED);
       }
 
       break;
