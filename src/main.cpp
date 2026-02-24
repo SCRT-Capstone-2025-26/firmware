@@ -316,9 +316,9 @@ void sample_baro() {
   float pressure = baro.getTemperature();
 
   if (board_mode == FLYING) {
-    flight_state.push_baro(temp, pressure, sample_size_s);
+    flight_state.push_baro(temp, pressure);
   } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-    rest_state.push_baro(temp, pressure, sample_size_s);
+    rest_state.push_baro(temp, pressure);
   }
 }
 
@@ -388,14 +388,6 @@ void loop() {
   update_servo();
 
   update_mode();
-
-  log_message(String(flight_state.pos.x()) + " " + String(flight_state.pos.y()) + " " + String(flight_state.pos.z()));
-  log_message(String(flight_state.vel.x()) + " " + String(flight_state.vel.y()) + " " + String(flight_state.vel.z()));
-  log_message(String(flight_state.acc.x()) + " " + String(flight_state.acc.y()) + " " + String(flight_state.acc.z()));
-  log_message("");
-  Eigen::Vector3f a = flight_state.rot.toRotationMatrix().eulerAngles(0, 1, 2);
-  log_message(String(a.x()) + " " + String(a.y()) + " " + String(a.z()));
-  log_message("");
 
   next_sample += sample_size_ms;
   if (!delay_to(next_sample)) {

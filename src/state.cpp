@@ -7,10 +7,14 @@
 
 // NOTE: There is no FPU on the RP2040 so this code could be more of a performance bottleneck that it appears
 // NOTE: These operations use the eigen math library and could be manually optimized in some cases,
-//  however, the compiler should handle a lot with inlining and if they need to be optimized later they can
+//  however, the compiler should handle a lot with inlining and if they need to be optimized later they can.
+//  The assembly doesn't look bery optmized (there are a lot of 0s in the matrix that can be propogated) unless
+//  called with O3. Of course performance tests are better than looking at the asm.
 // NOTE: We could calibrate the sensors in RestState, instead of pre calibrating them (this neither calibration
 //  version has been implmented yet)
+// NOTE: It is worth considering what parts of this could be fixed point
 
+// TODO: Test performance
 // TODO: It would make more sense to store the baro input and then wait until
 //  the imu reads data at a time past the baro read time and then apply the baro data
 //  that way it is always correclty applied at the right time
@@ -18,41 +22,47 @@
 void FlightState::push_baro(float pressure, float temperature) {
   // Estimate from pressure and temperature
   float height = 0.0f;
+  float noise = 1.0f;
 
   // Standard Kalman update
 
-  float a = obser_noise - (obser.transpose() * state);
-  Eigen::Matrix2f b = cov * obser;
-  float c = (obser.transpose() * b) + height;
-  Eigen::Vector2f K = b / c;
+  float inno = height - (obser * state);
+  float inno_noise = (obser * cov * obser.transpose()) + noise;
 
-  state = state + (K * a);
-  cov = (Eigen::Matrix2f::Identity() - (K * obser.transpose())) * cov;
+  Eigen::Vector2f gain = cov * obser.transpose() * (1.0f / inno_noise);
+
+  state += gain * inno;
+  cov = (Eigen::Matrix2f::Identity() - (gain * obser)) * cov;
 }
 
 void FlightState::push_acc(Eigen::Vector3f &&acc) {
-  acc -= ACC_BIAS;
+  // acc -= ACC_BIAS;
   // Rotate the vector into the world frame
-  acc = rot * acc;
+  // acc = rot * acc;
   // Remove the fictitious gravity force
-  acc -= rot.inverse() * Eigen::Vector3f(0.0f, GRAVITY_ACC, 0.0f);
+  // acc -= rot.inverse() * Eigen::Vector3f(0.0f, GRAVITY_ACC, 0.0f);
 
-  float forward_acc = acc * LOCAL_UP;
+  float forward_acc = acc.dot(LOCAL_UP);
+  float noise = 1.0f;
 
   // Since this is called regularly with a frequency of ACC_RATE we update the
   //  state and use acc as a control input
 
+  // Standard Kalman predict
+  // See https://stats.stackexchange.com/questions/134920/kalman-filter-with-input-control-noise for the control noise
+
   // To compute cos(zenith) we need to magnitude of the rotation of rot (ie theta)
   // Since w = cos(theta / 2) a trig identiy saves us a trig call
   // cos(2A) = 2cos(A)^2 - 1
-  float cosZenith = (2.0f * rot.w() * rot.w()) - 1;
+  float cosZenith = (2.0f * rot.w() * rot.w()) - 1.0f;
   // cos(zenith) * dt
   trans(0, 1) = cosZenith * (1.0f / ACC_RATE);
   // 1/2 * cos(zenith) * dt^2
-  control(1) = 0.5f * cosZenith * (1.0f / ACC_RATE) * (1.0f / ACC_RATE);
+  control(0) = 0.5f * cosZenith * (1.0f / ACC_RATE) * (1.0f / ACC_RATE);
 
-  state = (trans * state) * (control * forward_acc);
-  cov = (trans * cov * trans.transpose()) + control_noise;
+  state = (trans * state) + (control * forward_acc);
+  // See https://stats.stackexchange.com/questions/134920/kalman-filter-with-input-control-noise for the control noise
+  cov = (trans * cov * trans.transpose()) + (control * noise * control.transpose()) + trans_noise;
 }
 
 void FlightState::push_gyro(Eigen::Vector3f &&gyro) {
@@ -111,6 +121,7 @@ void RestState::push_gyro(Eigen::Vector3f &&gyro) {
 }
 
 bool RestState::try_init_flying(FlightState &state) {
+  return false;
   // If it is not launch time we just return early
   if (launch_samples < LAUNCH_SAMPLE_REQ && false) {
     return false;
@@ -141,9 +152,6 @@ bool RestState::try_init_flying(FlightState &state) {
 
   // The rotation that takes acc and turns it into down
   state.rot = Eigen::Quaternionf::FromTwoVectors(acc_vec, up);
-
-  state.pos = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
-  state.vel = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
 
   // Simulate the state getting this data
   // Assuming the ACC_RATE == GYRO_RATE there should be
