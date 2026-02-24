@@ -32,6 +32,9 @@
 
 struct FlightState {
   Eigen::Quaternionf rot;
+  // The square magnetitude of the accelerometer with the gravity acceleration included
+  // TODO: This should maybe be filter, to account for oscillations
+  float raw_acc_mag_sq;
 
   // 0 is height in world frame, 1 is velocity in rocket frame
   Eigen::Vector2f state;

@@ -37,8 +37,9 @@ void FlightState::push_baro(float pressure, float temperature) {
 
 void FlightState::push_acc(Eigen::Vector3f &&acc) {
   acc -= ACC_BIAS;
-  // Rotate the vector into the world frame
-  acc = rot * acc;
+  // We need the un gravity compenstated magnitude for detecting if beavs can be used
+  raw_acc_mag_sq = acc.dot(acc);
+
   // Remove the fictitious gravity force
   acc -= rot.inverse() * Eigen::Vector3f(0.0f, GRAVITY_ACC, 0.0f);
 
@@ -77,6 +78,12 @@ void FlightState::push_gyro(Eigen::Vector3f &&gyro) {
 }
 
 float FlightState::get_servo() {
+  // We can't extend beavs while until we are not accelerating aka the raw (gravity included) accelerometer reading is small
+  if (raw_acc_mag_sq > BEAVS_EXT_ACC * BEAVS_EXT_ACC) {
+    return 0.0f;
+  }
+
+  // TODO: Lookup table
   return 0.0f;
 }
 
@@ -90,9 +97,9 @@ bool FlightState::done() {
 
   // Since both are unit vectors we can use dot product to compute the cosine between them
   // Hopefully cos gets optimized
-  // TODO: This maybe shouldn't just be an immediate shutoff
+  // TODO: This maybe shouldn't just be an immediate shutoff (although if we calculate 30 deg may be cooked anyway)
   if (up.dot(rocket_up) < std::cos(30.0f * DEG_TO_RAD)) {
-    return true && false;
+    return true;
   }
 
   return false;
@@ -133,9 +140,8 @@ void RestState::push_gyro(Eigen::Vector3f &&gyro) {
 }
 
 bool RestState::try_init_flying(FlightState &state) {
-  return false;
   // If it is not launch time we just return early
-  if (launch_samples < LAUNCH_SAMPLE_REQ && false) {
+  if (launch_samples < LAUNCH_SAMPLE_REQ) {
     return false;
   }
 
@@ -170,6 +176,16 @@ bool RestState::try_init_flying(FlightState &state) {
     state.rot = DEFAULT_LAUNCH_ANGLE;
   }
 
+  state.state = Eigen::Vector2f(START_HEIGHT, 0.0f);
+  
+  state.cov(0, 0) = START_H_ERROR;
+  state.cov(0, 1) = 0.0f;
+  state.cov(1, 0) = 0.0f;
+  state.cov(0, 0) = START_V_ERROR;
+
+  // Before launch we are experiencing the fictitious gravity acceleration
+  state.raw_acc_mag_sq = GRAVITY_ACC * GRAVITY_ACC;
+
   // Simulate the state getting this data
   while (!buf.isEmpty()) {
     Measurement meas = buf.shift();
@@ -183,7 +199,24 @@ bool RestState::try_init_flying(FlightState &state) {
   return true;
 }
 
+// This runs in UNKOWN mode and if a flight is detected it means we have just booted
 bool RestState::try_init_flying_boot(FlightState &state) {
-  return try_init_flying(state);
+  // If it is not launch time we just return early
+  if (launch_samples < LAUNCH_SAMPLE_REQ) {
+    return false;
+  }
+
+  state.rot = DEFAULT_LAUNCH_ANGLE;
+  state.state = Eigen::Vector2f(UNK_START_HEIGHT, UNK_START_VEL);
+  
+  state.cov(0, 0) = UNK_START_H_ERROR;
+  state.cov(0, 1) = UNK_START_VH_CORR;
+  state.cov(1, 0) = UNK_START_VH_CORR;
+  state.cov(0, 0) = UNK_START_V_ERROR;
+
+  // We just set this to a value that will not allow beavs to extend immediately
+  state.raw_acc_mag_sq = (BEAVS_EXT_ACC * BEAVS_EXT_ACC) + 1.0f;
+
+  return true;
 }
 

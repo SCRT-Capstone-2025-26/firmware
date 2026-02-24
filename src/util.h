@@ -110,6 +110,35 @@ static RGB MODE_TO_COLOR[] = {
 //  some accelerometer data so we put that in the circular buffer as well
 #define ROT_HIST_SAMPLES  30
 
+// This depends on how the lookup table is made
+// TODO: Determine value
+#define START_HEIGHT 0.0f
+
+// The errors the rocket starts with
+// The cross error is 0
+// TODO: Determine values
+#define START_H_ERROR 1.0f
+#define START_V_ERROR 1.0f
+
+// The acceleration were beavs can extend
+// TODO: Determine value
+#define BEAVS_EXT_ACC 1.0f
+
+// This is the values that the rocket sets the estimated values to if it is booted during flight
+// TODO: Determine values
+#define UNK_START_HEIGHT 0.0f
+#define UNK_START_VEL 0.0f
+
+// The errors the rocket starts with if it is booted during flight
+// TODO: Determine values
+#define UNK_START_H_ERROR 1.0f
+#define UNK_START_V_ERROR 1.0f
+#define UNK_START_VH_CORR 1.0f
+
+// The acceleration were beavs can extend
+// TODO: Determine value
+#define BEAVS_EXT_ACC 1.0f
+
 const Eigen::Vector3f LOCAL_UP(0.0f, 0.0f, -1.0f);
 
 // Launch rail angle (4 degrees off straight up)

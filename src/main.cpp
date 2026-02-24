@@ -38,7 +38,7 @@ ISM6HG256XSensor imu(&softSPI, IMU_CS);
 RP2040_PWM servo(SERVO_1, (float)SERVO_FREQ, 0.0f);
 
 Millis next_sample;
-const Millis sample_size_ms = 100;
+const Millis sample_size_ms = 10;
 const float sample_size_s = sample_size_ms / SECONDS_TO_MILLIS;
 
 void init_pins() {
