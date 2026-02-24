@@ -379,10 +379,15 @@ void sample_imu() {
 }
 
 // This handles what the board should do when it has reached a critical failure
+// There is no reason to not just reboot unless we are in debug in which case we can
+// disable the watchdog and sleep to show what happened
 void do_failure() {
-  // TODO: Flush servo
-  // TODO: Reboot this will currently trigger the waqtchdog
+#ifndef DEBUG
+  watchdog_disable();
   delay(1000);
+#else
+  watchdog_reboot(0, 0, 0);
+#endif
 }
 
 void loop() {
