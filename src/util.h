@@ -62,6 +62,8 @@ static RGB MODE_TO_COLOR[] = {
   RGB(1, 1, 1),
 };
 
+// TODO: Relocate this constants
+
 #define LED_POSITIVE RGB(0, 1, 0)
 #define LED_NEGATIVE RGB(1, 0, 0)
 #define LED_DISABLE  RGB(0, 0, 0)
@@ -138,6 +140,10 @@ static RGB MODE_TO_COLOR[] = {
 // The acceleration were beavs can extend
 // TODO: Determine value
 #define BEAVS_EXT_ACC 1.0f
+
+// The value comes from https://github.com/RobTillaart/MS5611
+// TODO: Determine value
+#define SEA_LEVEL_PRESURE (1013.15 * 1e2)
 
 const Eigen::Vector3f LOCAL_UP(0.0f, 0.0f, -1.0f);
 

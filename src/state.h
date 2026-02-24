@@ -12,7 +12,7 @@
 // These classes define code that handles the rocket's physical state when in rest and in flight
 // The rest state also detects the transisition to flying
 
-// The flight state uses a Kalman filter to determine the rockets position
+// The flight state uses a Kalman filter (I think technically EKF) to determine the rockets position
 // Our lookup table currently only has two values world height and rocket forward velocity
 // This make up our state [h, v] and it is important to note these are in seperate frames of reference
 // We also track the angle with the gyro (for this and other conditions)
@@ -83,7 +83,6 @@ struct RestState {
 
   void push_buf(Measurement &&meas);
 
-  void push_baro(float pressure, float temperature);
   void push_acc(Eigen::Vector3f &&acc);
   void push_gyro(Eigen::Vector3f &&gyro);
 

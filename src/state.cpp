@@ -21,7 +21,10 @@
 
 void FlightState::push_baro(float pressure, float temperature) {
   // Estimate from pressure and temperature
-  float height = 0.0f;
+  // This is the formula used by https://github.com/RobTillaart/MS5611
+  // TODO: Update this math
+  float height = 44307.694 * (1 - pow(pressure / SEA_LEVEL_PRESURE, 0.190284));
+  // Using the state like this is kinda not allowed in a true Kalman filter
   float noise = 1.0f;
 
   // Standard Kalman update
@@ -29,6 +32,7 @@ void FlightState::push_baro(float pressure, float temperature) {
   float inno = height - (obser * state);
   float inno_noise = (obser * cov * obser.transpose()) + noise;
 
+  // FYI lol https://math.stackexchange.com/questions/2336473/what-is-the-inverse-of-a-1-times-1-matrix
   Eigen::Vector2f gain = cov * obser.transpose() * (1.0f / inno_noise);
 
   state += gain * inno;
@@ -181,7 +185,7 @@ bool RestState::try_init_flying(FlightState &state) {
   state.cov(0, 0) = START_H_ERROR;
   state.cov(0, 1) = 0.0f;
   state.cov(1, 0) = 0.0f;
-  state.cov(0, 0) = START_V_ERROR;
+  state.cov(1, 1) = START_V_ERROR;
 
   // Before launch we are experiencing the fictitious gravity acceleration
   state.raw_acc_mag_sq = GRAVITY_ACC * GRAVITY_ACC;
@@ -212,7 +216,7 @@ bool RestState::try_init_flying_boot(FlightState &state) {
   state.cov(0, 0) = UNK_START_H_ERROR;
   state.cov(0, 1) = UNK_START_VH_CORR;
   state.cov(1, 0) = UNK_START_VH_CORR;
-  state.cov(0, 0) = UNK_START_V_ERROR;
+  state.cov(1, 1) = UNK_START_V_ERROR;
 
   // We just set this to a value that will not allow beavs to extend immediately
   state.raw_acc_mag_sq = (BEAVS_EXT_ACC * BEAVS_EXT_ACC) + 1.0f;

@@ -38,7 +38,7 @@ ISM6HG256XSensor imu(&softSPI, IMU_CS);
 RP2040_PWM servo(SERVO_1, (float)SERVO_FREQ, 0.0f);
 
 Millis next_sample;
-const Millis sample_size_ms = 10;
+const Millis sample_size_ms = 100;
 const float sample_size_s = sample_size_ms / SECONDS_TO_MILLIS;
 
 void init_pins() {
@@ -311,14 +311,11 @@ void update_servo() {
 // TODO: Check self heating mentioned for similar product in MS5xxx library docs
 // TODO: Add error handling
 void sample_baro() {
-  baro.read();
-  float temp = baro.getPressure();
-  float pressure = baro.getTemperature();
-
   if (board_mode == FLYING) {
+    baro.read();
+    float temp = baro.getPressurePascal();
+    float pressure = baro.getTemperature();
     flight_state.push_baro(temp, pressure);
-  } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-    rest_state.push_baro(temp, pressure);
   }
 }
 
