@@ -59,18 +59,26 @@ struct FlightState {
   bool done();
 };
 
+struct Measurement {
+  Eigen::Vector3f data;
+  bool is_acc;
+};
+
 struct RestState {
+  const static uint16_t BUF_SIZE = (uint16_t)(ACC_RATE * LAUNCH_HIST_S) + (uint16_t)(GYRO_RATE * LAUNCH_HIST_S);
   // These hold the data collected by the imu because when the launch
   //  happens it will be detected a bit late due to filtering out false
   //  positives
-  // This is a huge ram sink, but should be fine
-  CircularBuffer<Eigen::Vector3f, (uint16_t)(ACC_RATE * LAUNCH_HIST_S) + ROT_HIST_SAMPLES> acc_buf;
-  CircularBuffer<Eigen::Vector3f, (uint16_t)(GYRO_RATE * LAUNCH_HIST_S)> gyro_buf;
+  // This is a huge ram sink, but should be fine as we have enough and don't use dynamic allocation (except a few strings)
+  CircularBuffer<Measurement, BUF_SIZE> buf;
+  CircularBuffer<Eigen::Vector3f, ROT_HIST_SAMPLES> rot_calib_buf;
 
   // The number of samples in a row that have registered a launch
   int launch_samples = 0;
 
   RestState() {}
+
+  void push_buf(Measurement &&meas);
 
   void push_baro(float pressure, float temperature);
   void push_acc(Eigen::Vector3f &&acc);

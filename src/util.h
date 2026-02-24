@@ -112,6 +112,11 @@ static RGB MODE_TO_COLOR[] = {
 
 const Eigen::Vector3f LOCAL_UP(0.0f, 0.0f, -1.0f);
 
+// Launch rail angle (4 degrees off straight up)
+// There is probably a nicer init function
+// TODO: Check
+const Eigen::Quaternionf DEFAULT_LAUNCH_ANGLE(std::cos(4.0f * DEG_TO_RAD), 0.0f, 0.0f, 1.0f * std::sin(4.0f * DEG_TO_RAD));
+
 const Eigen::Vector3f ACC_BIAS(0.008095040980820646f, -0.07066856444586497f, -0.06873988143672187f);
 const Eigen::Vector3f GYRO_BIAS(0.0020154851083784846f, 0.0032312920667005307f, -0.002640418776621421f);
 

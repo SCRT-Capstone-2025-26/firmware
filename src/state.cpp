@@ -36,11 +36,11 @@ void FlightState::push_baro(float pressure, float temperature) {
 }
 
 void FlightState::push_acc(Eigen::Vector3f &&acc) {
-  // acc -= ACC_BIAS;
+  acc -= ACC_BIAS;
   // Rotate the vector into the world frame
-  // acc = rot * acc;
+  acc = rot * acc;
   // Remove the fictitious gravity force
-  // acc -= rot.inverse() * Eigen::Vector3f(0.0f, GRAVITY_ACC, 0.0f);
+  acc -= rot.inverse() * Eigen::Vector3f(0.0f, GRAVITY_ACC, 0.0f);
 
   float forward_acc = acc.dot(LOCAL_UP);
   float noise = 1.0f;
@@ -101,8 +101,20 @@ bool FlightState::done() {
 void RestState::push_baro(float pressure, float temperature) {
 }
 
+void RestState::push_buf(Measurement &&meas) {
+  // If buf is full then the acceleration data being read is moved to the calibration buffer
+  if (buf.isFull()) {
+    Measurement old_meas = buf.shift();
+    if (old_meas.is_acc) {
+      rot_calib_buf.push(old_meas.data);
+    }
+  }
+
+  buf.push(meas);
+}
+
 void RestState::push_acc(Eigen::Vector3f &&acc) {
-  acc_buf.push(acc);
+  push_buf(Measurement{acc, false});
 
   // If have an acceleration greater than launch acc we mark it by increasing
   //  launch_samples to count the amount we have recieved in a row
@@ -117,7 +129,7 @@ void RestState::push_acc(Eigen::Vector3f &&acc) {
 }
 
 void RestState::push_gyro(Eigen::Vector3f &&gyro) {
-  gyro_buf.push(gyro);
+  push_buf(Measurement{gyro, false});
 }
 
 bool RestState::try_init_flying(FlightState &state) {
@@ -138,42 +150,34 @@ bool RestState::try_init_flying(FlightState &state) {
 
   Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
 
-  decltype(acc_buf)::index_t rot_samples_size = min(ROT_HIST_SAMPLES, acc_buf.size());
   Eigen::Vector3f acc_vec(0.0f, 0.0f, 0.0f);
-  for (int i = 0; i < rot_samples_size; i++) {
-    acc_vec += acc_buf.shift();
+  decltype(rot_calib_buf)::index_t rot_samples_size = rot_calib_buf.size();
+  if (rot_samples_size > 0) {
+    while (!rot_calib_buf.isEmpty()) {
+      acc_vec += rot_calib_buf.shift();
+    }
+
+    // Normally we would need to average these, but in this cases average doesn't change the angle so we don't
+    // acc_vec /= rot_samples_size;
+    // acc_vec is so far biased so we have to unbias it since we are not normalizing it we can just
+    //  use a multiply
+    acc_vec -= ACC_BIAS * rot_samples_size;
+
+    // The rotation that takes acc and turns it into down
+    state.rot = Eigen::Quaternionf::FromTwoVectors(acc_vec, up);
+  } else {
+    // If there is no calibration readings (which shouldn't happen then we default to the launch rail angle)
+    state.rot = DEFAULT_LAUNCH_ANGLE;
   }
-
-  // Normally we would need to average these, but in this cases average doesn't change the angle so we don't
-  // acc_vec /= rot_samples_size;
-  // acc_vec is so far biased so we have to unbias it since we are not normalizing it we can just
-  //  use a multiply
-  acc_vec -= ACC_BIAS * rot_samples_size;
-
-  // The rotation that takes acc and turns it into down
-  state.rot = Eigen::Quaternionf::FromTwoVectors(acc_vec, up);
 
   // Simulate the state getting this data
-  // Assuming the ACC_RATE == GYRO_RATE there should be
-  //  the same number of observations from each so we can just feed
-  //  one then the other
-  // If the rates are different it would have to be implmented differently (with simulated times for acc and gyro)
-  // TODO: This has a probablem where if there is a desync (ie one value is pushed early or something then it messes
-  //  everything up). This should be fixed by using one before with a typed union to keep the order
-  static_assert(ACC_RATE == GYRO_RATE, "Different accelerometer and gyro rate not implmented here");
-  while (!acc_buf.isEmpty() && !gyro_buf.isEmpty()) {
-    state.push_acc(acc_buf.shift());
-    state.push_gyro(gyro_buf.shift());
-  }
-
-  // Finish adding acc data if left
-  while (!acc_buf.isEmpty()) {
-    state.push_acc(acc_buf.shift());
-  }
-
-  // Finish adding gyro data if left
-  while (!gyro_buf.isEmpty()) {
-    state.push_gyro(gyro_buf.shift());
+  while (!buf.isEmpty()) {
+    Measurement meas = buf.shift();
+    if (meas.is_acc) {
+      state.push_acc(std::move(meas.data));
+    } else {
+      state.push_gyro(std::move(meas.data));
+    }
   }
 
   return true;
