@@ -26,8 +26,6 @@ void led_init() {
     gpio_set_function(LED_DATA, GPIO_FUNC_UART);
     io_bank0_hw->io[LED_DATA].ctrl = (io_bank0_hw->io[LED_DATA].ctrl & ~(3u<<8)) | (1u<<8); // invert UART output signal
 
-    sleep_us(100); // This seems to be needed to properly init
-
     for (int i = 0; i < LED_COUNT; i++) {
       leds[i] = LED_DISABLE;
     }
@@ -43,6 +41,9 @@ uint8_t write_buffer[24 * 6];
 uint led_channel = 0;
 
 void write_leds_dma() {
+    // Prevent overwriting the dma and messing up the leds
+    dma_channel_wait_for_finish_blocking(led_channel);
+
     // copied from https://github.com/rossihwang/pico_dma_uart
     dma_channel_config tx_config = dma_channel_get_default_config(led_channel);
     channel_config_set_transfer_data_size(&tx_config, DMA_SIZE_8);
@@ -77,7 +78,5 @@ void __not_in_flash_func(write_leds)(RGB* values, int count) {
 
 void led_show() {
     write_leds(leds, 6);
-
-    sleep_us(1000); // This seems to be needed to properly show leds in some cases
 }
 
