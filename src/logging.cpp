@@ -68,7 +68,7 @@ void write_calib(CalibData &&data) {
 // It returns when this core has booted and returns whether or not the SD is available
 bool wait_log_boot() {
   // There are fancier ways, but it doesn't matter since this should be a short wait
-  while (!log_booted) { delay(1); }
+  while (!log_booted) { sleep(1); }
 
   return sd_failure;
 }

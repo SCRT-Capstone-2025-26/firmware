@@ -81,7 +81,9 @@ static RGB MODE_TO_COLOR[] = {
 #define SERVO_MAX   1.0f
 // Flush extension is 6.35mm and there are 100.53fmm per rotation
 // TODO: Check this
-#define SERVO_FLUSH 6.35f / 100.53f
+#define SERVO_DUTY_MIN 0.15f
+#define SERVO_DUTY_MAX 0.75f
+#define SERVO_FLUSH    6.35f / 100.53f
 
 // I don't know why these aren't provided as constants from the library
 // It basically uses a if statement chain on a bunch of floats to figure out
@@ -155,7 +157,14 @@ const Eigen::Quaternionf DEFAULT_LAUNCH_ANGLE(std::cos(4.0f * DEG_TO_RAD), 0.0f,
 const Eigen::Vector3f ACC_BIAS(0.008095040980820646f, -0.07066856444586497f, -0.06873988143672187f);
 const Eigen::Vector3f GYRO_BIAS(0.0020154851083784846f, 0.0032312920667005307f, -0.002640418776621421f);
 
-bool delay_to(Millis target_time);
+#define ARM_ON  LOW
+#define ARM_OFF HIGH
+
+#define WATCHDOG_MS 20
+
+// These functions are based on the arduino delay, but feed the watchdog
+void sleep(Millis target_time);
+bool sleep_to(Millis target_time);
 
 #endif
 

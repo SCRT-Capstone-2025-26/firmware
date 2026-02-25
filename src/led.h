@@ -11,12 +11,14 @@ struct RGB {
 };
 
 enum LEDs {
-    LED_SD     = 0,
-    LED_RADIO  = 1,
-    LED_IMU    = 2,
-    LED_BARO   = 3,
-    LED_MAGN   = 4,
-    LED_STATUS = 5
+    LED_SD       = 0,
+    LED_RADIO    = 1,
+    LED_IMU      = 2,
+    LED_BARO     = 3,
+    // Watchdog used is the MAGN LED
+    // This code doesn't use the MAGN though
+    LED_WATCHDOG = 4,
+    LED_STATUS   = 5
 };
 
 #define LED_COUNT 6
