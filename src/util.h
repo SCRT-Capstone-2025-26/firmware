@@ -3,10 +3,12 @@
 
 #include <Arduino.h>
 #include <cmath>
+#include <ArduinoEigen.h>
 
 #include "led.h"
 
 typedef unsigned long Millis;
+typedef unsigned long Micros;
 
 // Booting = The board is initializing components in the setup function (which could be run on a power failure or watchdog reboot)
 // Unknown = Right after booting to determine if the board is flying right now or not
@@ -60,6 +62,8 @@ static RGB MODE_TO_COLOR[] = {
   RGB(1, 1, 1),
 };
 
+// TODO: Relocate this constants
+
 #define LED_POSITIVE RGB(0, 1, 0)
 #define LED_NEGATIVE RGB(1, 0, 0)
 #define LED_DISABLE  RGB(0, 0, 0)
@@ -87,7 +91,71 @@ static RGB MODE_TO_COLOR[] = {
 #define GYRO_RATE 960.0f
 #define ACC_RATE  960.0f
 
-#define GRAVITY_ACC 9.81f
+// 9.80665f is the ISO value of little g
+// The currently value is calibrated
+// TODO: Update these
+#define GRAVITY_ACC       9.782978212113562
+// This is low for testing
+// The amount of acc from normal gravity required to consider
+//  it a launch
+#define LAUNCH_ACC        0.3f
+// The number of samples that fit the launch criteria
+//  to actually transition to launch
+#define LAUNCH_SAMPLE_REQ 30
+// A big history can easily take up a lot of the kinda limited ram
+// The seconds of imu data to have in a rolling buffer so that after
+//  launch is detected the first few moments of launch
+// If this is big enough that it takes a while to compute
+//  the code will have to change
+// This must capture the whole launch so data used in the ROT_HIST_SAMPLES
+//  is not launch data
+#define LAUNCH_HIST_S     0.4f
+// We need to determine the rotation before launch from
+//  some accelerometer data so we put that in the circular buffer as well
+#define ROT_HIST_SAMPLES  30
+
+// This depends on how the lookup table is made
+// TODO: Determine value
+#define START_HEIGHT 0.0f
+
+// The errors the rocket starts with
+// The cross error is 0
+// TODO: Determine values
+#define START_H_ERROR 1.0f
+#define START_V_ERROR 1.0f
+
+// The acceleration were beavs can extend
+// TODO: Determine value
+#define BEAVS_EXT_ACC 1.0f
+
+// This is the values that the rocket sets the estimated values to if it is booted during flight
+// TODO: Determine values
+#define UNK_START_HEIGHT 0.0f
+#define UNK_START_VEL 0.0f
+
+// The errors the rocket starts with if it is booted during flight
+// TODO: Determine values
+#define UNK_START_H_ERROR 1.0f
+#define UNK_START_V_ERROR 1.0f
+#define UNK_START_VH_CORR 1.0f
+
+// The acceleration were beavs can extend
+// TODO: Determine value
+#define BEAVS_EXT_ACC 1.0f
+
+// The value comes from https://github.com/RobTillaart/MS5611
+// TODO: Determine value
+#define SEA_LEVEL_PRESURE (1013.15 * 1e2)
+
+const Eigen::Vector3f LOCAL_UP(0.0f, 0.0f, -1.0f);
+
+// Launch rail angle (4 degrees off straight up)
+// There is probably a nicer init function
+// TODO: Check
+const Eigen::Quaternionf DEFAULT_LAUNCH_ANGLE(std::cos(4.0f * DEG_TO_RAD), 0.0f, 0.0f, 1.0f * std::sin(4.0f * DEG_TO_RAD));
+
+const Eigen::Vector3f ACC_BIAS(0.008095040980820646f, -0.07066856444586497f, -0.06873988143672187f);
+const Eigen::Vector3f GYRO_BIAS(0.0020154851083784846f, 0.0032312920667005307f, -0.002640418776621421f);
 
 #define ARM_ON  LOW
 #define ARM_OFF HIGH

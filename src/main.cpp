@@ -3,6 +3,7 @@
 #include <MS5611_SPI.h>
 #include <SPI.h>
 #include <RP2040_PWM.h>
+#include <cmath>
 #include <hardware/watchdog.h>
 #include <cstdint>
 
@@ -324,14 +325,11 @@ void update_servo() {
 // TODO: Check self heating mentioned for similar product in MS5xxx library docs
 // TODO: Add error handling
 void sample_baro() {
-  baro.read();
-  float temp = baro.getPressure();
-  float pressure = baro.getTemperature();
-
   if (board_mode == FLYING) {
-    flight_state.push_baro(temp, pressure, sample_size_s);
-  } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-    rest_state.push_baro(temp, pressure, sample_size_s);
+    baro.read();
+    float temp = baro.getPressurePascal();
+    float pressure = baro.getTemperature();
+    flight_state.push_baro(temp, pressure);
   }
 
   watchdog_update();
@@ -354,9 +352,9 @@ void sample_imu() {
         imu.FIFO_G_Get_Axes(&gyro_axis);
 
         if (board_mode == FLYING) {
-          flight_state.push_gyro(gyro_axis, 1.0f / GYRO_RATE);
+          flight_state.push_gyro(Eigen::Vector3f(gyro_axis.x, gyro_axis.y, gyro_axis.z));
         } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-          rest_state.push_gyro(gyro_axis, 1.0f / GYRO_RATE);
+          rest_state.push_gyro(Eigen::Vector3f(gyro_axis.x, gyro_axis.y, gyro_axis.z));
         }
 
         break;
@@ -365,9 +363,9 @@ void sample_imu() {
         imu.FIFO_X_Get_Axes(&acc_axis);
 
         if (board_mode == FLYING) {
-          flight_state.push_acc(acc_axis, 1.0f / ACC_RATE);
+          flight_state.push_acc(Eigen::Vector3f(acc_axis.x, acc_axis.y, acc_axis.z));
         } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-          rest_state.push_acc(acc_axis, 1.0f / ACC_RATE);
+          rest_state.push_acc(Eigen::Vector3f(acc_axis.x, acc_axis.y, acc_axis.z));
         }
 
         break;
@@ -378,6 +376,11 @@ void sample_imu() {
 
     watchdog_update();
   }
+
+#ifdef CALIBRATION
+  write_calib(AccCalib(acc_axis));
+  write_calib(GyroCalib(gyro_axis));
+#endif
 }
 
 // This handles what the board should do when it has reached a critical failure
