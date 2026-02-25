@@ -89,7 +89,14 @@ static RGB MODE_TO_COLOR[] = {
 
 #define GRAVITY_ACC 9.81f
 
-bool delay_to(Millis target_time);
+#define ARM_ON  LOW
+#define ARM_OFF HIGH
+
+#define WATCHDOG_MS 20
+
+// These functions are based on the arduino delay, but feed the watchdog
+void sleep(Millis target_time);
+bool sleep_to(Millis target_time);
 
 #endif
 

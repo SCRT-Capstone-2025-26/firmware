@@ -3,6 +3,7 @@
 #include <MS5611_SPI.h>
 #include <SPI.h>
 #include <RP2040_PWM.h>
+#include <hardware/watchdog.h>
 #include <cstdint>
 
 #include "pins.h"
@@ -14,9 +15,8 @@
 // NOTE: This code uses millis() extensively and assumes it will not overflow (it will overflow in >40 days and that is not intended usage)
 // TODO: Look into gyro saturation
 // TODO: Look into pressure drop when hitting around mach numbers
-// TODO: Implement watchdog and look into how to store memory between watchdog reboots (probably write important data to flash on watchdog)
-//  this requires important data to be written such that the watchdog is able to read them in a consistent state at anytime
-// TODO: Consider checking the arming pin in UNKNOWN status to prevent false positives
+// TODO: Look at the readability of the watchdog feeding
+// TODO: Look into writing to flash for reboots (this is probably not useful since the time is reset)
 
 BoardMode board_mode = BOOTING;
 Millis last_mode_change = 0;
@@ -124,7 +124,8 @@ void setup() {
   delay(DEBUG_BOOT_DELAY);
 #endif
 
-  // TODO: Check if this is a watchdog boot
+  // The 1 means it plays nice with the debugger
+  watchdog_enable(WATCHDOG_MS, 1);
 
   // Initialize the pins
   // This initializes the servo power pins which if improperly initialized can cause
@@ -141,8 +142,8 @@ void setup() {
 
   // The radio is not currently used (or installed) so we just set the led to mark that (neutral is blue which is visible)
   leds[LED_RADIO] = LED_NEUTRAL;
-  // Same with the magnetometer
-  leds[LED_MAGN] = LED_NEUTRAL;
+  // Whether or not the watchdog has been triggered
+  leds[LED_WATCHDOG] = watchdog_caused_reboot() ? LED_NEGATIVE : LED_POSITIVE;
   led_show();
 
   // Initialize the LED the rp2040 has two SPIs and we init the first one to be able to communicate to the sensors
@@ -197,14 +198,22 @@ void setup() {
   led_show();
 
   if (baro_init && imu_init) {
-    // The board is now ready to be armed
-    push_mode(UNKNOWN);
+    // The board is now ready
+    // If the arm switch is active we could be booting in flight
+    //  and so should be in UNKNOWN until we know otherwise we can
+    //  just be in unarmed
+    if (digitalRead(ARM_SWITCH) == ARM_ON) {
+      push_mode(UNKNOWN);
+    } else {
+      push_mode(UNARMED);
+    }
   } else {
     // The board has failed to init
     push_mode(FAILURE);
   }
 
   next_sample = millis();
+  watchdog_update();
 }
 
 // This is called when the board confirms that it has booted an is on the ground waiting to launch
@@ -239,7 +248,7 @@ void update_mode() {
       break;
 
     case UNARMED:
-      if (digitalRead(ARM_SWITCH) == LOW) {
+      if (digitalRead(ARM_SWITCH) == ARM_ON) {
         push_mode(ARMED);
       }
 
@@ -252,7 +261,7 @@ void update_mode() {
         push_mode(FLYING);
       }
 
-      if (digitalRead(ARM_SWITCH) == HIGH) {
+      if (digitalRead(ARM_SWITCH) == ARM_OFF) {
         push_mode(UNARMED);
       }
 
@@ -274,6 +283,8 @@ void update_mode() {
 
       break;
   }
+
+  watchdog_update();
 }
 
 // TODO: Handle errors
@@ -307,6 +318,7 @@ void update_servo() {
 
   float duty_percent = (servo_percent * (SERVO_DUTY_MAX - SERVO_DUTY_MIN)) + SERVO_DUTY_MIN;
   servo.setPWM(SERVO_1, SERVO_FREQ, duty_percent * 100.0f);
+  watchdog_update();
 }
 
 // TODO: Check self heating mentioned for similar product in MS5xxx library docs
@@ -321,6 +333,8 @@ void sample_baro() {
   } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
     rest_state.push_baro(temp, pressure, sample_size_s);
   }
+
+  watchdog_update();
 }
 
 // TODO: Add error handling
@@ -361,12 +375,21 @@ void sample_imu() {
       default:
         break;
     }
+
+    watchdog_update();
   }
 }
 
 // This handles what the board should do when it has reached a critical failure
+// There is no reason to not just reboot unless we are in debug in which case we can
+// disable the watchdog and sleep to show what happened
 void do_failure() {
+#ifndef DEBUG
+  watchdog_disable();
   delay(1000);
+#else
+  watchdog_reboot(0, 0, 0);
+#endif
 }
 
 void loop() {
@@ -386,7 +409,7 @@ void loop() {
   update_mode();
 
   next_sample += sample_size_ms;
-  if (!delay_to(next_sample)) {
+  if (!sleep_to(next_sample)) {
     log_message("Loop overrun");
   }
 }
