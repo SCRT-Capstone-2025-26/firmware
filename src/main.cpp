@@ -34,6 +34,15 @@ SoftwareSPI softSPI(SPI_SCK, SPI_MISO, SPI_MOSI);
 MS5611_SPI baro(BAROMETER_CS, &softSPI);
 ISM6HG256XSensor imu(&softSPI, IMU_CS);
 
+// The mode of the accelerometer
+// We stay in high g mode and only switch to low g after launch
+bool acc_high_g = true;
+// Whether we have observed the readings from the new mode in the fifo
+//  once they appear we discard readings from the old mode since we would double
+//  count otherwise (there is still a one measurement double possible depending on the
+//  the order written, but there is only so much we can do)
+bool acc_fifo_switched = true;
+
 // The servo has an operating frequency of 50-300Hz
 RP2040_PWM servo(SERVO_1, (float)SERVO_FREQ, 0.0f);
 
@@ -168,20 +177,15 @@ void setup() {
   // So the returns are checked (as shown in their example code you can also or all these values and then check ISM6HG256_OK at the end)
   bool imu_init = imu.begin() == ISM6HG256X_OK;
 
-  // TODO: Figure out high G sensor the library doesn't seem to support it in the fifo, but the datasheet does
-
-  // Enable all the sensors on the imu. It has two accelerometers one for low g and one for high g.
-  // Both can be active at once
-  imu_init &= imu.Enable_G() == ISM6HG256X_OK;
-  imu_init &= imu.Enable_X() == ISM6HG256X_OK;
-
   // Set the ouput rate
   imu_init &= imu.Set_G_OutputDataRate(GYRO_RATE) == ISM6HG256X_OK;
   imu_init &= imu.Set_X_OutputDataRate(ACC_RATE) == ISM6HG256X_OK;
+  imu_init &= imu.Set_High_X_OutputDataRate(ACC_RATE) == ISM6HG256X_OK;
 
   // Set the rate at which data is stored in the fifo (I believe)
   imu_init &= imu.FIFO_G_Set_BDR(GYRO_RATE) == ISM6HG256X_OK;
   imu_init &= imu.FIFO_X_Set_BDR(ACC_RATE) == ISM6HG256X_OK;
+  imu_init &= imu.FIFO_High_X_Set_BDR(ACC_RATE) == ISM6HG256X_OK;
 
   // Set Set FIFO watermark level
   imu_init &= imu.FIFO_Set_Watermark_Level(199) == ISM6HG256X_OK;
@@ -190,6 +194,15 @@ void setup() {
 
   // Enable the fifo in continious mode (ie it overwrites old samples)
   imu_init &= imu.FIFO_Set_Mode(ISM6HG256X_STREAM_MODE) == ISM6HG256X_OK;
+
+  // Enable all the sensors on the imu. It has two accelerometers one for low g and one for high g.
+  // Both can be active at once
+  imu_init &= imu.Enable_G() == ISM6HG256X_OK;
+  imu_init &= imu.Enable_High_X() == ISM6HG256X_OK;
+
+  // Mark that we are in high_g mode
+  acc_high_g = true;
+  acc_fifo_switched = true;
 
   // TODO: Set up the accelerometer mode currently ISM6HG256X_ACC_HIGH_ACCURACY_ODR_MODE
   //  just immediatly causes the init to do nothing and return error
@@ -335,8 +348,26 @@ void sample_baro() {
   watchdog_update();
 }
 
+void set_acc_mode(bool new_high_g) {
+  if (acc_high_g == new_high_g) {
+    return;
+  }
+
+  acc_high_g = new_high_g;
+  acc_fifo_switched = false;
+
+  if (acc_high_g) {
+    imu.Enable_X();
+    imu.Disable_High_X();
+  } else {
+    imu.Disable_X();
+    imu.Enable_High_X();
+  }
+}
+
 // TODO: Add error handling
 void sample_imu() {
+  bool acc_axis_read = false;
   ISM6HG256X_Axes_t acc_axis;
   ISM6HG256X_Axes_t gyro_axis;
 
@@ -361,17 +392,60 @@ void sample_imu() {
 
       case 2:
         imu.FIFO_X_Get_Axes(&acc_axis);
+        acc_axis_read = true;
+
+        // If we are in high_g mode and the acc_fifo has started outputing high_g
+        //  we ignore our data
+        // If we are not in high_g mode then since we are getting low g data
+        //  we should mark that
+        if (acc_high_g) {
+          if (acc_fifo_switched) {
+            break;
+          }
+        } else {
+          acc_fifo_switched = true;
+        }
 
         if (board_mode == FLYING) {
-          flight_state.push_acc(Eigen::Vector3f(acc_axis.x, acc_axis.y, acc_axis.z));
+          flight_state.push_acc(Eigen::Vector3f(acc_axis.x, acc_axis.y, acc_axis.z), false);
         } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-          rest_state.push_acc(Eigen::Vector3f(acc_axis.x, acc_axis.y, acc_axis.z));
+          rest_state.push_acc(Eigen::Vector3f(acc_axis.x, acc_axis.y, acc_axis.z), false);
+        }
+
+        break;
+
+      case 3:
+        imu.FIFO_High_X_Get_Axes(&acc_axis);
+        acc_axis_read = true;
+
+        // See case 2
+        if (!acc_high_g) {
+          if (acc_fifo_switched) {
+            break;
+          }
+        } else {
+          acc_fifo_switched = true;
+        }
+
+        if (board_mode == FLYING) {
+          flight_state.push_acc(Eigen::Vector3f(acc_axis.x, acc_axis.y, acc_axis.z), true);
+        } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
+          rest_state.push_acc(Eigen::Vector3f(acc_axis.x, acc_axis.y, acc_axis.z), true);
         }
 
         break;
 
       default:
         break;
+    }
+
+    // We only use low-g mode once in flight because when waiting for launch
+    //  we want high g mode to get the early few readings of the launch
+    if (board_mode == FLYING && acc_axis_read) {
+      // We don't calibrate the readings or anything since we are switching based
+      //  on if the senor becomes maxed out
+      float sqr_mag = (acc_axis.x * acc_axis.x) + (acc_axis.y * acc_axis.y) + (acc_axis.z * acc_axis.z);
+      set_acc_mode(sqr_mag >= ACC_HIGH_G_SWITCH);
     }
 
     watchdog_update();

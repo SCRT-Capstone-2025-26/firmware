@@ -39,8 +39,13 @@ void FlightState::push_baro(float pressure, float temperature) {
   cov = (Eigen::Matrix2f::Identity() - (gain * obser)) * cov;
 }
 
-void FlightState::push_acc(Eigen::Vector3f &&acc) {
-  acc -= ACC_BIAS;
+void FlightState::push_acc(Eigen::Vector3f &&acc, bool is_high_g) {
+  if (is_high_g) {
+    acc -= HIGH_G_ACC_BIAS;
+  } else {
+    acc -= ACC_BIAS;
+  }
+
   // We need the un gravity compenstated magnitude for detecting if beavs can be used
   raw_acc_mag_sq = acc.dot(acc);
 
@@ -48,6 +53,7 @@ void FlightState::push_acc(Eigen::Vector3f &&acc) {
   acc -= rot.inverse() * Eigen::Vector3f(0.0f, GRAVITY_ACC, 0.0f);
 
   float forward_acc = acc.dot(LOCAL_UP);
+  // TODO: Determine
   float noise = 1.0f;
 
   // Since this is called regularly with a frequency of ACC_RATE we update the
@@ -124,8 +130,8 @@ void RestState::push_buf(Measurement &&meas) {
   buf.push(meas);
 }
 
-void RestState::push_acc(Eigen::Vector3f &&acc) {
-  push_buf(Measurement{acc, false});
+void RestState::push_acc(Eigen::Vector3f &&acc, bool high_g) {
+  push_buf(Measurement{acc, high_g, false});
 
   // If have an acceleration greater than launch acc we mark it by increasing
   //  launch_samples to count the amount we have recieved in a row
@@ -140,7 +146,7 @@ void RestState::push_acc(Eigen::Vector3f &&acc) {
 }
 
 void RestState::push_gyro(Eigen::Vector3f &&gyro) {
-  push_buf(Measurement{gyro, false});
+  push_buf(Measurement{gyro, false, false});
 }
 
 bool RestState::try_init_flying(FlightState &state) {
@@ -194,7 +200,7 @@ bool RestState::try_init_flying(FlightState &state) {
   while (!buf.isEmpty()) {
     Measurement meas = buf.shift();
     if (meas.is_acc) {
-      state.push_acc(std::move(meas.data));
+      state.push_acc(std::move(meas.data), meas.is_high_g);
     } else {
       state.push_gyro(std::move(meas.data));
     }
