@@ -303,19 +303,21 @@ void update_servo() {
     return;
   }
 
-  float duty_percent = SERVO_FLUSH;
-
+  float servo_percent = SERVO_FLUSH;
   if (board_mode == FLYING) {
-    duty_percent = flight_state.get_servo();
+    servo_percent = flight_state.get_servo();
   } else if (board_mode == UNARMED) {
     // Just a generic parabola (maxed with 0) to generate the full range of motion over a few seconds
     // It is 0 at 1500 and 4500 millis and peaks at 1 since it is 0 at 1500 millis that gives
-    // the servo 1500 to zero since we don't know its position
-    float time = millis_in_mode() / SECONDS_TO_MILLIS;
-    float duty_percent = max(-(time - 1.5f) * (time - 4.5f) / 2.25f, 0.0f);
+    // the servo 1500 (and for servo to be powered after UNKNOWN) to zero since we don't know its position
+    // If it enters this mode before the servo is inited the parabola could be messed up
+    // The (1.0f / x) is for optimization
+    float time = millis_in_mode() * (1.0f / SECONDS_TO_MILLIS);
+    servo_percent = max(-(time - 1.5f) * (time - 4.5f) * (1.0f / 2.25f), 0.0f);
   }
 
-  servo.setPWM(SERVO_1, (float)SERVO_FREQ, (float)(duty_percent * SERVO_FREQ));
+  float duty_percent = (servo_percent * (SERVO_DUTY_MAX - SERVO_DUTY_MIN)) + SERVO_DUTY_MIN;
+  servo.setPWM(SERVO_1, SERVO_FREQ, duty_percent * 100.0f);
   watchdog_update();
 }
 
