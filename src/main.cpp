@@ -304,9 +304,9 @@ void update_mode() {
       push_failure();
 
       break;
-  }
 
-  watchdog_update();
+    watchdog_update();
+  }
 }
 
 // TODO: Handle errors
@@ -380,7 +380,11 @@ void set_acc_mode(bool new_high_g) {
 void sample_imu() {
   bool acc_axis_read = false;
 
-  uint8_t reading_data[3];
+  int16_t reading_data[3];
+  // These are biased the bias is not removed
+  //  since we use them for changing from high g to low g
+  //  and we don't want to remove the bias from that they are scaled
+  //  though
   Eigen::Vector3f acc_axis;
   Eigen::Vector3f gyro_axis;
 
@@ -390,23 +394,21 @@ void sample_imu() {
   uint8_t tag;
   for (uint16_t i = 0; i < samples; i++) {
     imu.FIFO_Get_Tag(&tag);
+    imu.FIFO_Get_Data((uint8_t *)reading_data);
 
     switch (tag) {
-      case 1:
-        imu.FIFO_Get_Data(reading_data);
-
+      case GYRO_TAG:
         gyro_axis.x() = reading_data[0] * GYRO_SENS;
         gyro_axis.y() = reading_data[1] * GYRO_SENS;
         gyro_axis.z() = reading_data[2] * GYRO_SENS;
 
         if (board_mode == FLYING) {
-          flight_state.push_gyro(gyro_axis);
+          flight_state.push_gyro(gyro_axis - GYRO_BIAS);
         }
 
         break;
 
-      case 2:
-        imu.FIFO_Get_Data(reading_data);
+      case ACC_TAG:
         acc_axis_read = true;
 
         acc_axis.x() = reading_data[0] * ACC_SENS;
@@ -426,17 +428,17 @@ void sample_imu() {
         }
 
         if (board_mode == FLYING) {
-          flight_state.push_acc(acc_axis, false);
+          flight_state.push_acc(acc_axis - ACC_BIAS, false);
         } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-          rest_state.push_acc(acc_axis, false);
+          rest_state.push_acc(acc_axis - ACC_BIAS, false);
         }
 
         break;
 
-      case 3:
+      // I have no idea where the 29 comes from
+      case ACC_HG_TAG:
         // Getting a high g reading from the fifo is the same as getting an normal accelerometer reading
         //  at least a raw reading
-        imu.FIFO_Get_Data(reading_data);
         acc_axis_read = true;
 
         acc_axis.x() = reading_data[0] * ACC_HIGH_G_SENS;
@@ -453,9 +455,9 @@ void sample_imu() {
         }
 
         if (board_mode == FLYING) {
-          flight_state.push_acc(acc_axis, true);
+          flight_state.push_acc(acc_axis - ACC_HIGH_G_BIAS, true);
         } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-          rest_state.push_acc(acc_axis, true);
+          rest_state.push_acc(acc_axis - ACC_HIGH_G_BIAS, true);
         }
 
         break;
@@ -513,6 +515,8 @@ void loop() {
   next_sample += sample_size_ms;
   if (!sleep_to(next_sample)) {
     log_message("Loop overrun");
+    // Feed the watchdog since it doesn't get feed if next_sample is 0
+    watchdog_update();
   }
 }
 

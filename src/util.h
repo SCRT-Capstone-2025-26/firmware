@@ -153,7 +153,8 @@ static RGB MODE_TO_COLOR[] = {
 // TODO: Tune the senstivities based on calibration
 #define GYRO_SENS ISM6HG256X_GYRO_SENSITIVITY_FS_4000DPS
 #define ACC_SENS ISM6HG256X_ACC_SENSITIVITY_FS_4G
-#define ACC_HIGH_G_SENS ISM6HG256X_ACC_SENSITIVITY_FS_64G
+// This is just guestimated
+#define ACC_HIGH_G_SENS (ISM6HG256X_ACC_SENSITIVITY_FS_64G * 0.55f)
 
 // TODO: Determine these
 // NOTE: Changing these requires recalibration
@@ -169,12 +170,13 @@ const Eigen::Vector3f LOCAL_UP(0.0f, 0.0f, -1.0f);
 const Eigen::Quaternionf DEFAULT_LAUNCH_ANGLE(std::cos(4.0f * DEG_TO_RAD), 0.0f, 0.0f, 1.0f * std::sin(4.0f * DEG_TO_RAD));
 
 const Eigen::Vector3f ACC_BIAS(0.008095040980820646f, -0.07066856444586497f, -0.06873988143672187f);
-const Eigen::Vector3f HIGH_G_ACC_BIAS(0.0f, 0.0f, 0.0f);
+const Eigen::Vector3f ACC_HIGH_G_BIAS(0.0f, 0.0f, 0.0f);
 const Eigen::Vector3f GYRO_BIAS(0.0020154851083784846f, 0.0032312920667005307f, -0.002640418776621421f);
 
 #define ARM_ON  LOW
 #define ARM_OFF HIGH
 
+// Can't be lower due to barometer bug yet
 #define WATCHDOG_MS 20
 
 // These functions are based on the arduino delay, but feed the watchdog
