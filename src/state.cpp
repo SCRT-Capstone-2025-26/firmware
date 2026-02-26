@@ -120,7 +120,7 @@ void RestState::push_buf(Measurement &&meas) {
 }
 
 void RestState::push_acc(Eigen::Vector3f &&acc, bool high_g) {
-  push_buf(Measurement{acc, high_g, false});
+  push_buf(Measurement{acc, high_g, true});
 
   // If have an acceleration greater than launch acc we mark it by increasing
   //  launch_samples to count the amount we have recieved in a row
@@ -155,19 +155,19 @@ bool RestState::try_init_flying(FlightState &state) {
 
   Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
 
+    // If there is no calibration readings (which shouldn't happen then we default to the launch rail angle)
   Eigen::Vector3f acc_vec(0.0f, 0.0f, 0.0f);
   decltype(rot_calib_buf)::index_t rot_samples_size = rot_calib_buf.size();
   if (rot_samples_size > 0) {
     while (!rot_calib_buf.isEmpty()) {
       acc_vec += rot_calib_buf.shift();
     }
-
-    // The rotation that takes acc and turns it into down
-    state.rot = Eigen::Quaternionf::FromTwoVectors(acc_vec, up);
   } else {
-    // If there is no calibration readings (which shouldn't happen then we default to the launch rail angle)
-    state.rot = DEFAULT_LAUNCH_ANGLE;
+    acc_vec = RAIL_VEC;
   }
+
+  // The rotation that takes acc and turns it into down
+  state.rot = Eigen::Quaternionf::FromTwoVectors(acc_vec, up);
 
   state.state = Eigen::Vector2f(START_HEIGHT, 0.0f);
   
@@ -202,7 +202,9 @@ bool RestState::try_init_flying_boot(FlightState &state) {
     return false;
   }
 
-  state.rot = DEFAULT_LAUNCH_ANGLE;
+  Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
+
+  state.rot = Eigen::Quaternionf::FromTwoVectors(RAIL_VEC, up);
   state.state = Eigen::Vector2f(UNK_START_HEIGHT, UNK_START_VEL);
   
   state.cov(0, 0) = UNK_START_H_ERROR;

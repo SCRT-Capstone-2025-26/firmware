@@ -151,8 +151,13 @@ static RGB MODE_TO_COLOR[] = {
 #define ACC_HIGH_G_SWITCH (3.5f * GRAVITY_ACC)
 
 // TODO: Tune the senstivities based on calibration
-#define GYRO_SENS ISM6HG256X_GYRO_SENSITIVITY_FS_4000DPS
-#define ACC_SENS ISM6HG256X_ACC_SENSITIVITY_FS_4G
+
+// I don't know why the constants don't work
+// This is just guestimated
+#define GYRO_SENS (ISM6HG256X_GYRO_SENSITIVITY_FS_4000DPS * 0.5f)
+// I don't know why the constants don't work
+// This is just guestimated
+#define ACC_SENS (ISM6HG256X_ACC_SENSITIVITY_FS_4G * 3.95)
 // This is just guestimated
 #define ACC_HIGH_G_SENS (ISM6HG256X_ACC_SENSITIVITY_FS_64G * 0.55f)
 
@@ -162,12 +167,13 @@ static RGB MODE_TO_COLOR[] = {
 #define ACC_FS 4
 #define ACC_HIGH_G_FS 64
 
-const Eigen::Vector3f LOCAL_UP(0.0f, 0.0f, -1.0f);
-
 // Launch rail angle (4 degrees off straight up)
-// There is probably a nicer init function
 // TODO: Check
-const Eigen::Quaternionf DEFAULT_LAUNCH_ANGLE(std::cos(4.0f * DEG_TO_RAD), 0.0f, 0.0f, 1.0f * std::sin(4.0f * DEG_TO_RAD));
+#define RAIL_ANGLE (4.0f * DEG_TO_RAD)
+
+const Eigen::Vector3f LOCAL_UP(0.0f, 0.0f, 1.0f);
+// This is based on LOCAL_UP (this init should be changed to be dependent on LOCAL_UP)
+const Eigen::Vector3f RAIL_VEC(0.0f, std::sin(RAIL_ANGLE), std::cos(RAIL_ANGLE));
 
 const Eigen::Vector3f ACC_BIAS(0.008095040980820646f, -0.07066856444586497f, -0.06873988143672187f);
 const Eigen::Vector3f ACC_HIGH_G_BIAS(0.0f, 0.0f, 0.0f);
