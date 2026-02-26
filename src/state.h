@@ -54,8 +54,8 @@ struct FlightState {
   FlightState() {}
 
   void push_baro(float pressure, float temperature);
-  void push_acc(Eigen::Vector3f &&acc, bool high_g);
-  void push_gyro(Eigen::Vector3f &&gyro);
+  void push_acc(Eigen::Vector3f &acc, bool high_g);
+  void push_gyro(Eigen::Vector3f &gyro);
 
   float get_servo();
 
@@ -84,8 +84,8 @@ struct RestState {
 
   void push_buf(Measurement &&meas);
 
-  void push_acc(Eigen::Vector3f &&acc, bool high_g);
-  void push_gyro(Eigen::Vector3f &&gyro);
+  void push_acc(Eigen::Vector3f &acc, bool high_g);
+  void push_gyro(Eigen::Vector3f &gyro);
 
   // Returns true if the rocket is flying and inits the flight state to that
   bool try_init_flying(FlightState &state);

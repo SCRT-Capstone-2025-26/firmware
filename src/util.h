@@ -148,7 +148,18 @@ static RGB MODE_TO_COLOR[] = {
 #define SEA_LEVEL_PRESURE (1013.15 * 1e2)
 
 // TODO: Determine value
-#define ACC_HIGH_G_SWITCH (2.0f * GRAVITY_ACC)
+#define ACC_HIGH_G_SWITCH (3.5f * GRAVITY_ACC)
+
+// TODO: Tune the senstivities based on calibration
+#define GYRO_SENS ISM6HG256X_GYRO_SENSITIVITY_FS_4000DPS
+#define ACC_SENS ISM6HG256X_ACC_SENSITIVITY_FS_4G
+#define ACC_HIGH_G_SENS ISM6HG256X_ACC_SENSITIVITY_FS_64G
+
+// TODO: Determine these
+// NOTE: Changing these requires recalibration
+#define GYRO_FS 4000
+#define ACC_FS 4
+#define ACC_HIGH_G_FS 64
 
 const Eigen::Vector3f LOCAL_UP(0.0f, 0.0f, -1.0f);
 
