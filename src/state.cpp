@@ -39,8 +39,7 @@ void FlightState::push_baro(float pressure, float temperature) {
   cov = (Eigen::Matrix2f::Identity() - (gain * obser)) * cov;
 }
 
-void FlightState::push_acc(Eigen::Vector3f &&acc) {
-  acc -= ACC_BIAS;
+void FlightState::push_acc(Eigen::Vector3f &&acc, bool is_high_g) {
   // We need the un gravity compenstated magnitude for detecting if beavs can be used
   raw_acc_mag_sq = acc.dot(acc);
 
@@ -48,6 +47,7 @@ void FlightState::push_acc(Eigen::Vector3f &&acc) {
   acc -= rot.inverse() * Eigen::Vector3f(0.0f, GRAVITY_ACC, 0.0f);
 
   float forward_acc = acc.dot(LOCAL_UP);
+  // TODO: Determine
   float noise = 1.0f;
 
   // Since this is called regularly with a frequency of ACC_RATE we update the
@@ -71,8 +71,6 @@ void FlightState::push_acc(Eigen::Vector3f &&acc) {
 }
 
 void FlightState::push_gyro(Eigen::Vector3f &&gyro) {
-  gyro -= GYRO_BIAS;
-
   // See https://stackoverflow.com/questions/23503151/how-to-update-quaternion-based-on-3d-gyro-data
   // I think this is based on the approximation sin(x) == x
   Eigen::Quaternionf w(0, gyro.x(), gyro.y(), gyro.z());
@@ -109,9 +107,6 @@ bool FlightState::done() {
   return false;
 }
 
-void RestState::push_baro(float pressure, float temperature) {
-}
-
 void RestState::push_buf(Measurement &&meas) {
   // If buf is full then the acceleration data being read is moved to the calibration buffer
   if (buf.isFull()) {
@@ -124,15 +119,15 @@ void RestState::push_buf(Measurement &&meas) {
   buf.push(meas);
 }
 
-void RestState::push_acc(Eigen::Vector3f &&acc) {
-  push_buf(Measurement{acc, false});
+void RestState::push_acc(Eigen::Vector3f &&acc, bool high_g) {
+  push_buf(Measurement{acc, high_g, true});
 
   // If have an acceleration greater than launch acc we mark it by increasing
   //  launch_samples to count the amount we have recieved in a row
   // If not we reset it to 0 since we has seen 0 in a row
   // It probably wouldn't matter to use a norm sqrd, but RestState is not performance sensitive
   // TODO: Could be better to require some percentage of samples be launch detections
-  if (std::abs((acc - ACC_BIAS).norm() - GRAVITY_ACC) >= LAUNCH_ACC) {
+  if (std::abs(acc.norm() - GRAVITY_ACC) >= LAUNCH_ACC) {
     launch_samples++;
   } else {
     launch_samples = 0;
@@ -140,7 +135,7 @@ void RestState::push_acc(Eigen::Vector3f &&acc) {
 }
 
 void RestState::push_gyro(Eigen::Vector3f &&gyro) {
-  push_buf(Measurement{gyro, false});
+  push_buf(Measurement{gyro, false, false});
 }
 
 bool RestState::try_init_flying(FlightState &state) {
@@ -160,25 +155,19 @@ bool RestState::try_init_flying(FlightState &state) {
 
   Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
 
+    // If there is no calibration readings (which shouldn't happen then we default to the launch rail angle)
   Eigen::Vector3f acc_vec(0.0f, 0.0f, 0.0f);
   decltype(rot_calib_buf)::index_t rot_samples_size = rot_calib_buf.size();
   if (rot_samples_size > 0) {
     while (!rot_calib_buf.isEmpty()) {
       acc_vec += rot_calib_buf.shift();
     }
-
-    // Normally we would need to average these, but in this cases average doesn't change the angle so we don't
-    // acc_vec /= rot_samples_size;
-    // acc_vec is so far biased so we have to unbias it since we are not normalizing it we can just
-    //  use a multiply
-    acc_vec -= ACC_BIAS * rot_samples_size;
-
-    // The rotation that takes acc and turns it into down
-    state.rot = Eigen::Quaternionf::FromTwoVectors(acc_vec, up);
   } else {
-    // If there is no calibration readings (which shouldn't happen then we default to the launch rail angle)
-    state.rot = DEFAULT_LAUNCH_ANGLE;
+    acc_vec = RAIL_VEC;
   }
+
+  // The rotation that takes acc and turns it into down
+  state.rot = Eigen::Quaternionf::FromTwoVectors(acc_vec, up);
 
   state.state = Eigen::Vector2f(START_HEIGHT, 0.0f);
   
@@ -194,10 +183,13 @@ bool RestState::try_init_flying(FlightState &state) {
   while (!buf.isEmpty()) {
     Measurement meas = buf.shift();
     if (meas.is_acc) {
-      state.push_acc(std::move(meas.data));
+      state.push_acc(std::move(meas.data), meas.is_high_g);
     } else {
       state.push_gyro(std::move(meas.data));
     }
+
+    // This kinda violates the design principles
+    watchdog_update();
   }
 
   return true;
@@ -210,7 +202,9 @@ bool RestState::try_init_flying_boot(FlightState &state) {
     return false;
   }
 
-  state.rot = DEFAULT_LAUNCH_ANGLE;
+  Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
+
+  state.rot = Eigen::Quaternionf::FromTwoVectors(RAIL_VEC, up);
   state.state = Eigen::Vector2f(UNK_START_HEIGHT, UNK_START_VEL);
   
   state.cov(0, 0) = UNK_START_H_ERROR;

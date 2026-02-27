@@ -34,6 +34,15 @@ SoftwareSPI softSPI(SPI_SCK, SPI_MISO, SPI_MOSI);
 MS5611_SPI baro(BAROMETER_CS, &softSPI);
 ISM6HG256XSensor imu(&softSPI, IMU_CS);
 
+// The mode of the accelerometer
+// We stay in high g mode and only switch to low g after launch
+bool acc_high_g = true;
+// Whether we have observed the readings from the new mode in the fifo
+//  once they appear we discard readings from the old mode since we would double
+//  count otherwise (there is still a one measurement double possible depending on the
+//  the order written, but there is only so much we can do)
+bool acc_fifo_switched = true;
+
 // The servo has an operating frequency of 50-300Hz
 RP2040_PWM servo(SERVO_1, (float)SERVO_FREQ, 0.0f);
 
@@ -111,9 +120,11 @@ Millis millis_in_mode() {
 
 // Pushing LED_STATUS gets overwritten immediatly so is equivalent to a failure with no origin
 void push_failure(LEDs failure_led = LED_STATUS) {
-  leds[failure_led] = LED_NEGATIVE;
-  // Push mode updates the LEDS so we don't need to call led_show
-  led_show();
+  if (failure_led != LED_STATUS) {
+    leds[failure_led] = LED_NEGATIVE;
+    // Push mode updates the LEDS so we don't need to call led_show
+    led_show();
+  }
 
   push_mode(FAILURE);
 }
@@ -122,7 +133,7 @@ void push_failure(LEDs failure_led = LED_STATUS) {
 void setup() {
 #ifdef DEBUG
   // Allow some time for the serial monitor to connect
-  delay(DEBUG_BOOT_DELAY);
+  sleep(DEBUG_BOOT_DELAY);
 #endif
 
   // The 1 means it plays nice with the debugger
@@ -168,20 +179,21 @@ void setup() {
   // So the returns are checked (as shown in their example code you can also or all these values and then check ISM6HG256_OK at the end)
   bool imu_init = imu.begin() == ISM6HG256X_OK;
 
-  // TODO: Figure out high G sensor the library doesn't seem to support it in the fifo, but the datasheet does
-
-  // Enable all the sensors on the imu. It has two accelerometers one for low g and one for high g.
-  // Both can be active at once
-  imu_init &= imu.Enable_G() == ISM6HG256X_OK;
-  imu_init &= imu.Enable_X() == ISM6HG256X_OK;
-
   // Set the ouput rate
   imu_init &= imu.Set_G_OutputDataRate(GYRO_RATE) == ISM6HG256X_OK;
   imu_init &= imu.Set_X_OutputDataRate(ACC_RATE) == ISM6HG256X_OK;
+  imu_init &= imu.Set_HG_X_OutputDataRate(ACC_RATE) == ISM6HG256X_OK;
+
+  // Set the sensor scales
+  imu_init &= imu.Set_X_FullScale(GYRO_FS) == ISM6HG256X_OK;
+  imu_init &= imu.Set_X_FullScale(ACC_FS) == ISM6HG256X_OK;
+  imu_init &= imu.Set_X_FullScale(ACC_HIGH_G_FS) == ISM6HG256X_OK;
 
   // Set the rate at which data is stored in the fifo (I believe)
   imu_init &= imu.FIFO_G_Set_BDR(GYRO_RATE) == ISM6HG256X_OK;
   imu_init &= imu.FIFO_X_Set_BDR(ACC_RATE) == ISM6HG256X_OK;
+  // Allow high readings in the FIFO
+  imu_init &= imu.FIFO_Set_HG(true) == ISM6HG256X_OK;
 
   // Set Set FIFO watermark level
   imu_init &= imu.FIFO_Set_Watermark_Level(199) == ISM6HG256X_OK;
@@ -191,10 +203,19 @@ void setup() {
   // Enable the fifo in continious mode (ie it overwrites old samples)
   imu_init &= imu.FIFO_Set_Mode(ISM6HG256X_STREAM_MODE) == ISM6HG256X_OK;
 
+  // Enable all the sensors on the imu. It has two accelerometers one for low g and one for high g.
+  // Both can be active at once
+  imu_init &= imu.Enable_G() == ISM6HG256X_OK;
+  imu_init &= imu.Enable_HG_X() == ISM6HG256X_OK;
+
+  // Mark that we are in high_g mode
+  acc_high_g = true;
+  acc_fifo_switched = true;
+
   // TODO: Set up the accelerometer mode currently ISM6HG256X_ACC_HIGH_ACCURACY_ODR_MODE
   //  just immediatly causes the init to do nothing and return error
 
-  if (baro_init) { log_message("IMU inited"); }
+  if (imu_init) { log_message("IMU inited"); }
   leds[LED_IMU] = imu_init ? LED_POSITIVE : LED_NEGATIVE;
   led_show();
 
@@ -210,7 +231,7 @@ void setup() {
     }
   } else {
     // The board has failed to init
-    push_mode(FAILURE);
+    push_failure();
   }
 
   next_sample = millis();
@@ -335,10 +356,37 @@ void sample_baro() {
   watchdog_update();
 }
 
+void set_acc_mode(bool new_high_g) {
+  if (acc_high_g == new_high_g) {
+    return;
+  }
+
+  acc_high_g = new_high_g;
+  acc_fifo_switched = false;
+
+  if (acc_high_g) {
+    imu.Enable_X();
+    imu.Disable_HG_X();
+  } else {
+    imu.Disable_X();
+    imu.Enable_HG_X();
+  }
+}
+
 // TODO: Add error handling
+// NOTE: We read raw data because not reading raw data reads the senstivity
+//  from the sensor making the FIFO reading twice as slow. We also don't use
+//  the standard senstivity instead using calibrated senstivities
 void sample_imu() {
-  ISM6HG256X_Axes_t acc_axis;
-  ISM6HG256X_Axes_t gyro_axis;
+  bool acc_axis_read = false;
+
+  int16_t reading_data[3];
+  // These are biased the bias is not removed
+  //  since we use them for changing from high g to low g
+  //  and we don't want to remove the bias from that they are scaled
+  //  though
+  Eigen::Vector3f acc_axis;
+  Eigen::Vector3f gyro_axis;
 
   uint16_t samples;
   imu.FIFO_Get_Num_Samples(&samples);
@@ -346,32 +394,85 @@ void sample_imu() {
   uint8_t tag;
   for (uint16_t i = 0; i < samples; i++) {
     imu.FIFO_Get_Tag(&tag);
+    imu.FIFO_Get_Data((uint8_t *)reading_data);
 
     switch (tag) {
-      case 1:
-        imu.FIFO_G_Get_Axes(&gyro_axis);
+      case 1/*GYRO_TAG*/:
+        gyro_axis.x() = reading_data[0] * GYRO_SENS;
+        gyro_axis.y() = reading_data[1] * GYRO_SENS;
+        gyro_axis.z() = reading_data[2] * GYRO_SENS;
 
         if (board_mode == FLYING) {
-          flight_state.push_gyro(Eigen::Vector3f(gyro_axis.x, gyro_axis.y, gyro_axis.z));
-        } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-          rest_state.push_gyro(Eigen::Vector3f(gyro_axis.x, gyro_axis.y, gyro_axis.z));
+          flight_state.push_gyro(gyro_axis - GYRO_BIAS);
         }
 
         break;
 
-      case 2:
-        imu.FIFO_X_Get_Axes(&acc_axis);
+      case 2/*ACC_TAG*/:
+        acc_axis_read = true;
+
+        acc_axis.x() = reading_data[0] * ACC_SENS;
+        acc_axis.y() = reading_data[1] * ACC_SENS;
+        acc_axis.z() = reading_data[2] * ACC_SENS;
+
+        // If we are in high_g mode and the acc_fifo has started outputing high_g
+        //  we ignore our data
+        // If we are not in high_g mode then since we are getting low g data
+        //  we should mark that
+        if (acc_high_g) {
+          if (acc_fifo_switched) {
+            break;
+          }
+        } else {
+          acc_fifo_switched = true;
+        }
 
         if (board_mode == FLYING) {
-          flight_state.push_acc(Eigen::Vector3f(acc_axis.x, acc_axis.y, acc_axis.z));
+          flight_state.push_acc(acc_axis - ACC_BIAS, false);
         } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-          rest_state.push_acc(Eigen::Vector3f(acc_axis.x, acc_axis.y, acc_axis.z));
+          rest_state.push_acc(acc_axis - ACC_BIAS, false);
         }
 
         break;
+
+      // I have no idea where the 29 comes from
+      /*case ACC_HG_TAG:
+        // Getting a high g reading from the fifo is the same as getting an normal accelerometer reading
+        //  at least a raw reading
+        acc_axis_read = true;
+
+        acc_axis.x() = reading_data[0] * ACC_HIGH_G_SENS;
+        acc_axis.y() = reading_data[1] * ACC_HIGH_G_SENS;
+        acc_axis.z() = reading_data[2] * ACC_HIGH_G_SENS;
+
+        // See case 2
+        if (!acc_high_g) {
+          if (acc_fifo_switched) {
+            break;
+          }
+        } else {
+          acc_fifo_switched = true;
+        }
+
+        if (board_mode == FLYING) {
+          flight_state.push_acc(acc_axis - ACC_HIGH_G_BIAS, true);
+        } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
+          rest_state.push_acc(acc_axis - ACC_HIGH_G_BIAS, true);
+        }
+
+        break;*/
 
       default:
         break;
+    }
+
+    // We only use low-g mode once in flight because when waiting for launch
+    //  we want high g mode to get the early few readings of the launch
+    if (board_mode == FLYING && acc_axis_read) {
+      // We don't calibrate the readings or anything since we are switching based
+      //  on if the senor becomes maxed out
+      float sqr_mag = acc_axis.dot(acc_axis);
+      set_acc_mode(sqr_mag >= ACC_HIGH_G_SWITCH);
     }
 
     watchdog_update();
@@ -388,10 +489,10 @@ void sample_imu() {
 // disable the watchdog and sleep to show what happened
 void do_failure() {
 #ifndef DEBUG
+  watchdog_reboot(0, 0, 0);
+#else
   watchdog_disable();
   delay(1000);
-#else
-  watchdog_reboot(0, 0, 0);
 #endif
 }
 
@@ -403,8 +504,8 @@ void loop() {
   }
 
   // Sample the sensors (this updates the relevant state object)
-  sample_baro();
-  sample_imu();
+  // sample_baro();
+  // sample_imu();
 
   // Update the servo based on the state object
   update_servo();
@@ -414,6 +515,8 @@ void loop() {
   next_sample += sample_size_ms;
   if (!sleep_to(next_sample)) {
     log_message("Loop overrun");
+    // Feed the watchdog since it doesn't get feed if next_sample is 0
+    watchdog_update();
   }
 }
 

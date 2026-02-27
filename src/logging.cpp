@@ -76,7 +76,7 @@ bool wait_log_boot() {
 void setup1() {
 #ifdef DEBUG
   // Allow some time for the serial to connect
-  delay(DEBUG_BOOT_DELAY);
+  sleep(DEBUG_BOOT_DELAY);
 #endif
 
   // Init the serial

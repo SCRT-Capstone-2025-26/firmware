@@ -79,11 +79,10 @@ static RGB MODE_TO_COLOR[] = {
 #define SERVO_FREQ  300.0f
 #define SERVO_MIN   0.0f
 #define SERVO_MAX   1.0f
-// Flush extension is 6.35mm and there are 100.53fmm per rotation
 // TODO: Check this
-#define SERVO_DUTY_MIN 0.15f
-#define SERVO_DUTY_MAX 0.75f
-#define SERVO_FLUSH    6.35f / 100.53f
+#define SERVO_DUTY_MIN 0.75f
+#define SERVO_DUTY_MAX 0.15f
+#define SERVO_FLUSH    0.0f
 
 // I don't know why these aren't provided as constants from the library
 // It basically uses a if statement chain on a bunch of floats to figure out
@@ -139,27 +138,46 @@ static RGB MODE_TO_COLOR[] = {
 #define UNK_START_V_ERROR 1.0f
 #define UNK_START_VH_CORR 1.0f
 
-// The acceleration were beavs can extend
-// TODO: Determine value
-#define BEAVS_EXT_ACC 1.0f
-
 // The value comes from https://github.com/RobTillaart/MS5611
 // TODO: Determine value
 #define SEA_LEVEL_PRESURE (1013.15 * 1e2)
 
-const Eigen::Vector3f LOCAL_UP(0.0f, 0.0f, -1.0f);
+// TODO: Determine value
+#define ACC_HIGH_G_SWITCH (3.5f * GRAVITY_ACC)
+
+// TODO: Tune the senstivities based on calibration
+
+// I don't know why the constants don't work
+// This is just guestimated
+#define GYRO_SENS (ISM6HG256X_GYRO_SENSITIVITY_FS_4000DPS * 0.5f)
+// I don't know why the constants don't work
+// This is just guestimated
+#define ACC_SENS (ISM6HG256X_ACC_SENSITIVITY_FS_4G * 3.95)
+// This is just guestimated
+#define ACC_HIGH_G_SENS (ISM6HG256X_ACC_SENSITIVITY_FS_64G * 0.55f)
+
+// TODO: Determine these
+// NOTE: Changing these requires recalibration
+#define GYRO_FS 4000
+#define ACC_FS 4
+#define ACC_HIGH_G_FS 64
 
 // Launch rail angle (4 degrees off straight up)
-// There is probably a nicer init function
 // TODO: Check
-const Eigen::Quaternionf DEFAULT_LAUNCH_ANGLE(std::cos(4.0f * DEG_TO_RAD), 0.0f, 0.0f, 1.0f * std::sin(4.0f * DEG_TO_RAD));
+#define RAIL_ANGLE (4.0f * DEG_TO_RAD)
+
+const Eigen::Vector3f LOCAL_UP(0.0f, 0.0f, 1.0f);
+// This is based on LOCAL_UP (this init should be changed to be dependent on LOCAL_UP)
+const Eigen::Vector3f RAIL_VEC(0.0f, std::sin(RAIL_ANGLE), std::cos(RAIL_ANGLE));
 
 const Eigen::Vector3f ACC_BIAS(0.008095040980820646f, -0.07066856444586497f, -0.06873988143672187f);
+const Eigen::Vector3f ACC_HIGH_G_BIAS(0.0f, 0.0f, 0.0f);
 const Eigen::Vector3f GYRO_BIAS(0.0020154851083784846f, 0.0032312920667005307f, -0.002640418776621421f);
 
 #define ARM_ON  LOW
 #define ARM_OFF HIGH
 
+// Can't be lower due to barometer bug yet
 #define WATCHDOG_MS 20
 
 // These functions are based on the arduino delay, but feed the watchdog
