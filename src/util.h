@@ -79,11 +79,10 @@ static RGB MODE_TO_COLOR[] = {
 #define SERVO_FREQ  300.0f
 #define SERVO_MIN   0.0f
 #define SERVO_MAX   1.0f
-// Flush extension is 6.35mm and there are 100.53fmm per rotation
 // TODO: Check this
-#define SERVO_DUTY_MIN 0.15f
-#define SERVO_DUTY_MAX 0.75f
-#define SERVO_FLUSH    6.35f / 100.53f
+#define SERVO_DUTY_MIN 0.75f
+#define SERVO_DUTY_MAX 0.15f
+#define SERVO_FLUSH    0.0f
 
 // I don't know why these aren't provided as constants from the library
 // It basically uses a if statement chain on a bunch of floats to figure out

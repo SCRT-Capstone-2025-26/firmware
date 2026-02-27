@@ -304,9 +304,9 @@ void update_mode() {
       push_failure();
 
       break;
-
-    watchdog_update();
   }
+
+  watchdog_update();
 }
 
 // TODO: Handle errors
@@ -397,7 +397,7 @@ void sample_imu() {
     imu.FIFO_Get_Data((uint8_t *)reading_data);
 
     switch (tag) {
-      case GYRO_TAG:
+      case 1/*GYRO_TAG*/:
         gyro_axis.x() = reading_data[0] * GYRO_SENS;
         gyro_axis.y() = reading_data[1] * GYRO_SENS;
         gyro_axis.z() = reading_data[2] * GYRO_SENS;
@@ -408,7 +408,7 @@ void sample_imu() {
 
         break;
 
-      case ACC_TAG:
+      case 2/*ACC_TAG*/:
         acc_axis_read = true;
 
         acc_axis.x() = reading_data[0] * ACC_SENS;
@@ -436,7 +436,7 @@ void sample_imu() {
         break;
 
       // I have no idea where the 29 comes from
-      case ACC_HG_TAG:
+      /*case ACC_HG_TAG:
         // Getting a high g reading from the fifo is the same as getting an normal accelerometer reading
         //  at least a raw reading
         acc_axis_read = true;
@@ -460,7 +460,7 @@ void sample_imu() {
           rest_state.push_acc(acc_axis - ACC_HIGH_G_BIAS, true);
         }
 
-        break;
+        break;*/
 
       default:
         break;
@@ -504,8 +504,8 @@ void loop() {
   }
 
   // Sample the sensors (this updates the relevant state object)
-  sample_baro();
-  sample_imu();
+  // sample_baro();
+  // sample_imu();
 
   // Update the servo based on the state object
   update_servo();
