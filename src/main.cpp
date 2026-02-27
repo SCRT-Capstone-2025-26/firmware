@@ -436,7 +436,7 @@ void sample_imu() {
         break;
 
       // I have no idea where the 29 comes from
-      /*case ACC_HG_TAG:
+      case ACC_HG_TAG:
         // Getting a high g reading from the fifo is the same as getting an normal accelerometer reading
         //  at least a raw reading
         acc_axis_read = true;
@@ -460,7 +460,7 @@ void sample_imu() {
           rest_state.push_acc(acc_axis - ACC_HIGH_G_BIAS, true);
         }
 
-        break;*/
+        break;
 
       default:
         break;
@@ -504,8 +504,8 @@ void loop() {
   }
 
   // Sample the sensors (this updates the relevant state object)
-  // sample_baro();
-  // sample_imu();
+  sample_baro();
+  sample_imu();
 
   // Update the servo based on the state object
   update_servo();
