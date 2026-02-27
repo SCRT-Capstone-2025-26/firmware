@@ -138,10 +138,6 @@ static RGB MODE_TO_COLOR[] = {
 #define UNK_START_V_ERROR 1.0f
 #define UNK_START_VH_CORR 1.0f
 
-// The acceleration were beavs can extend
-// TODO: Determine value
-#define BEAVS_EXT_ACC 1.0f
-
 // The value comes from https://github.com/RobTillaart/MS5611
 // TODO: Determine value
 #define SEA_LEVEL_PRESURE (1013.15 * 1e2)
