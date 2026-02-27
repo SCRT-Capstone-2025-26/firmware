@@ -56,10 +56,11 @@ void FlightState::push_acc(Eigen::Vector3f &&acc, bool is_high_g) {
   // Standard Kalman predict
   // See https://stats.stackexchange.com/questions/134920/kalman-filter-with-input-control-noise for the control noise
 
-  // To compute cos(zenith) we need to magnitude of the rotation of rot (ie theta)
-  // Since w = cos(theta / 2) a trig identiy saves us a trig call
-  // cos(2A) = 2cos(A)^2 - 1
-  float cosZenith = (2.0f * rot.w() * rot.w()) - 1.0f;
+  // See the done code for explaination of cosZenith
+  // We could optimize by storing this value and then using it in done
+  Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
+  Eigen::Vector3f rocket_up = rot * LOCAL_UP;
+  float cosZenith = up.dot(rocket_up);
   // cos(zenith) * dt
   trans(0, 1) = cosZenith * (1.0f / ACC_RATE);
   // 1/2 * cos(zenith) * dt^2
