@@ -212,6 +212,11 @@ void setup() {
   acc_high_g = true;
   acc_fifo_switched = true;
 
+  imu_init &= imu.Enable_SFLP() == ISM6HG256X_OK;
+  // TODO: move to non always boot path
+  imu_init &= imu.Reinitialize_SFLP() == ISM6HG256X_OK;
+  imu_init &= imu.FIFO_SFLP_Enable() == ISM6HG256X_OK;
+
   // TODO: Set up the accelerometer mode currently ISM6HG256X_ACC_HIGH_ACCURACY_ODR_MODE
   //  just immediatly causes the init to do nothing and return error
 
@@ -391,6 +396,8 @@ void sample_imu() {
   uint16_t samples;
   imu.FIFO_Get_Num_Samples(&samples);
 
+  int16_t quat_storage[2];
+
   uint8_t tag;
   for (uint16_t i = 0; i < samples; i++) {
     imu.FIFO_Get_Tag(&tag);
@@ -435,6 +442,20 @@ void sample_imu() {
 
         break;
 
+      case 0x13:
+        if (reading_data[0] == 0) {
+          quat_storage[0] = reading_data[1];
+          quat_storage[1] = reading_data[2];
+        } else {
+          log_message("game: " + String(ism6hg256x_from_quaternion_lsb_to_float(reading_data[2])) + " + " + String(ism6hg256x_from_quaternion_lsb_to_float(quat_storage[0])) + "i + " + String(ism6hg256x_from_quaternion_lsb_to_float(quat_storage[1])) + "j + " + String(ism6hg256x_from_quaternion_lsb_to_float(reading_data[1])) + "k");
+        }
+        break;
+
+      case 0x17:
+        log_message("grav: " + String(reading_data[0]) + ", " + String(reading_data[1]) + ", " + String(reading_data[2]) + ", ");
+        break;
+
+
       // I have no idea where the 29 comes from
       case ACC_HG_TAG:
         // Getting a high g reading from the fifo is the same as getting an normal accelerometer reading
@@ -463,6 +484,7 @@ void sample_imu() {
         break;
 
       default:
+        // log_message("unrecognized tag:" + String(tag));
         break;
     }
 
@@ -506,6 +528,25 @@ void loop() {
   // Sample the sensors (this updates the relevant state object)
   sample_baro();
   sample_imu();
+
+  // int16_t grav_raw[3];
+  // if (imu.Get_SFLP_Gravity_Raw(grav_raw) == 0) {
+  //   String message = "grav(millig):";
+  //   for (int i = 0; i < 3; i++) {
+  //     float a = (float)(grav_raw[i]) * 0.061f;
+  //     message += String(a) + ",";
+  //   }
+  //   log_message(message);
+  // }
+
+  // ism6hg256x_quaternion_t game;
+  // if (imu.Get_SFLP_Game_Rotation(&game) == 0) {
+  //   String message = "game: " + String(game.quat_w) + " + " + String(game.quat_x) + "i + " + String(game.quat_y) + "j + " + String(game.quat_z) + "k";
+  //   log_message(message);
+  //   // float sin = std::sqrt(1 - game.quat_w * game.quat_w);
+  //   // String axis = "axis: " + String(game.quat_x / sin) + "," + String(game.quat_y / sin) + "," + String(game.quat_z / sin);
+  //   // log_message(axis);
+  // }
 
   // Update the servo based on the state object
   update_servo();
