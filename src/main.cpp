@@ -452,7 +452,7 @@ void sample_imu() {
         break;
 
       case 0x17:
-        log_message("grav: " + String(reading_data[0]) + ", " + String(reading_data[1]) + ", " + String(reading_data[2]) + ", ");
+        log_message("grav: " + String(reading_data[0] * 0.061f) + ", " + String(reading_data[1] * 0.061f) + ", " + String(reading_data[2] * 0.061f) + ", ");
         break;
 
 
