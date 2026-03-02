@@ -27,6 +27,9 @@ RestState rest_state = RestState();
 
 bool servo_powered = false;
 
+Millis baro_read_time;
+BaroState baro_state = IDLE;
+
 // The pins aren't correctly assigned for hardware SPI on the board
 // I assume it is a mistake (?) so we have to use bit banging
 SoftwareSPI softSPI(SPI_SCK, SPI_MISO, SPI_MOSI);
@@ -45,10 +48,6 @@ bool acc_fifo_switched = true;
 
 // The servo has an operating frequency of 50-300Hz
 RP2040_PWM servo(SERVO_1, (float)SERVO_FREQ, 0.0f);
-
-Millis next_sample;
-const Millis sample_size_ms = 100;
-const float sample_size_s = sample_size_ms / SECONDS_TO_MILLIS;
 
 void init_pins() {
   // Disable servo power on startup due to inrush
@@ -171,6 +170,9 @@ void setup() {
   // This sampling will change in the future
   baro.setOversampling(OSR_ULTRA_HIGH);
 
+  // The barometer is not sampling right now
+  baro_state = IDLE;
+
   if (baro_init) { log_message("Barometer inited"); }
   leds[LED_BARO] = baro_init ? LED_POSITIVE : LED_NEGATIVE;
   led_show();
@@ -234,7 +236,6 @@ void setup() {
     push_failure();
   }
 
-  next_sample = millis();
   watchdog_update();
 }
 
@@ -345,12 +346,55 @@ void update_servo() {
 
 // TODO: Check self heating mentioned for similar product in MS5xxx library docs
 // TODO: Add error handling
-void sample_baro() {
-  if (board_mode == FLYING) {
-    baro.read();
-    float temp = baro.getPressurePascal();
-    float pressure = baro.getTemperature();
-    flight_state.push_baro(temp, pressure);
+void step_sample_baro() {
+  switch (baro_state) {
+    case IDLE:
+      // We only sample when flying
+      if (board_mode == FLYING) {
+        // We read the pressure first because we care about its accuracy less
+        //  so reading it first creates less of a time delay issue
+        // Set the baro_read_time to the sample delay
+        baro.startReadRawTemp(&baro_read_time);
+        // Then add the current time so it is the future time when the delay is done
+        baro_read_time += millis();
+        baro_state = READING_TEMP;
+      }
+
+      break;
+
+    case READING_TEMP:
+      // If we have finished the read we switch to the pressure reading
+      if (millis() >= baro_read_time) {
+        // Set the baro_read_time to the sample delay
+        baro.stepReadRawPres(&baro_read_time);
+        // Then add the current time so it is the future time when the delay is done
+        baro_read_time += millis();
+        baro_state = READING_PRES;
+      }
+      break;
+
+    case READING_PRES:
+      // If we have finished the read we switch either clear the sensor
+      //  or send the reading to flight state and restart the read
+      if (millis() >= baro_read_time) {
+        baro.finishReading();
+
+        if (board_mode == FLYING) {
+          flight_state.push_baro(baro.getPressure(), baro.getTemperature());
+
+          // We now restart the sample (we could use a switch fallthrough here)
+          // Set the baro_read_time to the sample delay
+          baro.startReadRawTemp(&baro_read_time);
+          // Then add the current time so it is the future time when the delay is done
+          baro_read_time += millis();
+
+          baro_state = READING_TEMP;
+        } else {
+          // otherwise we return to idle since we should not be sampling the barometer
+          baro_state = IDLE;
+        }
+      }
+      break;
   }
 
   watchdog_update();
@@ -504,19 +548,20 @@ void loop() {
   }
 
   // Sample the sensors (this updates the relevant state object)
-  sample_baro();
+  // The barometer only provides samples at the odr sampling rate
+  //  so this function just advances the sampling process if possible
+  // We sample the imu first since it contains a buffer of all the samples
+  //  and we want the samples fed to the flight state roughly in order
+  //  so we want the buffer to be empty when reading the pressure sensor
+  //  to ensure it is in order roughly
   sample_imu();
+  step_sample_baro();
 
   // Update the servo based on the state object
   update_servo();
 
   update_mode();
 
-  next_sample += sample_size_ms;
-  if (!sleep_to(next_sample)) {
-    log_message("Loop overrun");
-    // Feed the watchdog since it doesn't get feed if next_sample is 0
-    watchdog_update();
-  }
+  watchdog_update();
 }
 
