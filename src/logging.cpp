@@ -27,6 +27,7 @@ auto match(Val &&val, Ts... ts) {
 
 std::atomic_bool log_booted(false);
 std::atomic<bool> sd_failure;
+std::atomic<bool> flash_ready(false);
 
 SdFs sd;
 FsFile log_file;
@@ -78,6 +79,12 @@ void setup1() {
   // Allow some time for the serial to connect
   sleep(DEBUG_BOOT_DELAY);
 #endif
+
+  // This is here since the other core writes to flash
+  // See the documentation on flash writing
+  flash_safe_execute_core_init();
+  // This prevents super edge case race conditions where this core is not running and flash is written
+  flash_ready = true;
 
   // Init the serial
   Serial.begin(115200);

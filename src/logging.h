@@ -34,6 +34,8 @@ struct __attribute__((packed)) GyroCalib {
 // The data should be packed as it it written directly to a buffer
 typedef std::variant<AccCalib, GyroCalib> CalibData;
 
+extern std::atomic<bool> flash_ready;
+
 void log_message(Message &&content);
 
 void write_calib(CalibData &&data);
