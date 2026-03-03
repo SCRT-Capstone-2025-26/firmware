@@ -163,6 +163,7 @@ void setup() {
 
   // Initialize the barometer we has an MS5607, but the interface should be the same as the MS5611 which
   // is the library we are using
+  // NOTE: This takes 3 ms to read the PROM which could be hardcoded if we want to save boot time
   bool baro_init = baro.begin();
   // Since we are using softwareSPI we have to set the rate in this library
   // This is what the brinup code sets it to so ...
