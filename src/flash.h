@@ -2,6 +2,7 @@
 #define FLASH_H
 
 #include <hardware/flash.h>
+#include <pico/flash.h>
 #include <cstdint>
 
 // NOTE: I think we could use the uinitialized RAM macro for a watchdog reboot
@@ -28,6 +29,9 @@ bool clear_flash_buf();
 //  it also disables interrupts while running
 // NOTE: This will return false if called before clear_flash_buf or flash_reinit
 bool flash_push_state(State &&state);
+
+// This overrides the weak version from the standard library and this is compatible the arduino earlephilower stuff
+flash_safety_helper_t *get_flash_safety_helper(void);
 
 #endif
 

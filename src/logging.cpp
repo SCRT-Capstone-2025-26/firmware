@@ -1,5 +1,6 @@
 #include <atomic>
 #include <SdFat.h>
+#include <cstddef>
 #include <pico/platform.h>
 #include <variant>
 #include <tuple>
@@ -82,6 +83,7 @@ void setup1() {
 
   // This is here since the other core writes to flash
   // See the documentation on flash writing
+  // This uses the overrided flash safety handler from flash.h and flash.cpp
   flash_safe_execute_core_init();
   // This prevents super edge case race conditions where this core is not running and flash is written
   flash_ready = true;

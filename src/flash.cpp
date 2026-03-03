@@ -13,8 +13,6 @@
 // This must include a zero
 #define VALID_FLASH_ENTRY 0
 
-#define FLASH_SAFE_TIMEOUT 3
-
 // This is the desired buffer size
 #define BUF_MAX_MEM    (1024 * 1024 * 2)
 // This will align to FLASH_PAGE_SIZE since FLASH_SECTOR_SIZE is a multiple of page size
@@ -68,13 +66,14 @@ void _clear_flash_buf(void *_) {
   flash_range_erase((uint32_t)&flash_buf - XIP_BASE, BUF_MEM);
 }
 
+// NOTE: Maybe this disables interrupts for too long
 bool clear_flash_buf() {
   // Check the logging core is ready for a flash write
   if (!flash_ready) {
     return false;
   }
 
-  flash_safe_execute(_clear_flash_buf, NULL, FLASH_SAFE_TIMEOUT);
+  flash_safe_execute(_clear_flash_buf, NULL, 0 /*The timeout_ms is not implemented anyway*/);
 
   flash_index = 0;
   return true;
@@ -126,7 +125,42 @@ bool flash_push_state(State &&state) {
   args.memory = page_addr;
   args.page   = page;
   args.size   = write_size;
-  return flash_safe_execute(_flash_write, page, FLASH_SAFE_TIMEOUT) == PICO_OK;
+  return flash_safe_execute(_flash_write, page, 0 /*The timeout_ms is not implemented anyway*/) == PICO_OK;
 }
 
+// The overriden flash safety functions
+
+uint32_t irq_state[NUM_CORES];
+
+bool earle_core_init_deinit(bool init) {
+  return true;
+}
+
+// NOTE: These functions do not implement the timeout_ms
+
+int earle_enter_safe_zone_timeout_ms(uint32_t timeout_ms) {
+  rp2040.idleOtherCore();
+
+  irq_state[get_core_num()] = save_and_disable_interrupts();
+
+  return PICO_OK;
+}
+
+int earle_exit_safe_zone_timeout_ms(uint32_t timeout_ms) {
+  restore_interrupts_from_disabled(irq_state[get_core_num()]);
+
+  rp2040.resumeOtherCore();
+
+  return PICO_OK;
+}
+
+flash_safety_helper_t earle_flash_safety_helper = flash_safety_helper_t{
+  .core_init_deinit = earle_core_init_deinit,
+  .enter_safe_zone_timeout_ms = earle_enter_safe_zone_timeout_ms,
+  .exit_safe_zone_timeout_ms = earle_exit_safe_zone_timeout_ms
+};
+
+flash_safety_helper_t *get_flash_safety_helper(void) {
+  return &earle_flash_safety_helper;
+}
 

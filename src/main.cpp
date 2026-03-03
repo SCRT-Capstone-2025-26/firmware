@@ -7,6 +7,7 @@
 #include <hardware/watchdog.h>
 #include <cstdint>
 
+#include "flash.h"
 #include "pins.h"
 #include "state.h"
 #include "logging.h"
@@ -244,6 +245,11 @@ void setup() {
 // It could take some time to run (because it waits for the log core), but it shouldn't because the
 //  log core should boot fast
 void ground_boot() {
+  log_message("Clearing flash");
+  sleep(1000);
+  log_message("1learing flash");
+  clear_flash_buf();
+
   log_message("Waiting on log core");
   // Wait for the other core to finish booting
   // This returns when the other core has booted with whether it has created log files
