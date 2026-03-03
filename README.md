@@ -31,9 +31,9 @@ See the hardware [repo](https://github.com/osu-asdt/beavs-6) for more details.
 
 The main chip is the [rp2040](https://pip-assets.raspberrypi.com/categories/814-rp2040/documents/RP-008371-DS-1-rp2040-datasheet.pdf?disposition=inline) and we use the Arduino base, but also make use of many hardware specific functions.
 
-Currently we use the imu [ISM6HG256x](https://www.st.com/resource/en/datasheet/ism6hg256x.pdf), barometer [MS5607](https://www.te.com/commerce/DocumentDelivery/DDEController?Action=showdoc&DocId=Data+Sheet%7FMS5607-02BA03%7FB%7Fpdf%7FEnglish%7FENG_DS_MS5607-02BA03_B.pdf%7FCAT-BLPS0035) (which is compatible with the MS5611 standard), a PWM servo (no datasheet since this is not set in stone), and an (unimplemented) [radio]().
+Currently we use the imu [ISM6HG256x](https://www.st.com/resource/en/datasheet/ism6hg256x.pdf), barometer [MS5607](https://www.te.com/commerce/DocumentDelivery/DDEController?Action=showdoc&DocId=Data+Sheet%7FMS5607-02BA03%7FB%7Fpdf%7FEnglish%7FENG_DS_MS5607-02BA03_B.pdf%7FCAT-BLPS0035) (which is compatible with the MS5611 standard), a PWM servo (no datasheet since this is not set in stone), and an (unimplemented) radio.
 
-We may end up using the [GPS](), but currently do not. All other sensors are not used.
+We may end up using the GPS, but currently do not. All other sensors are not used.
 
 ## Software Outline
 
