@@ -45,10 +45,12 @@ The main control loops runs differently depending on which state it is in.
 
 - **BOOT**: The first mode entered. Where all sensors are inited.
 - **UNKNOWN**: Where it waits a few to detecting whether it is reading data consistent with flight and if so jumps to the flight state
-- **Unarmed**: An idle mode waiting for the arm switch (it records imu data in this mode)
-- **Armed**: An idle mode where it waits and records imu data waiting for a consistent launch signal from the imu
-- **Flight**: The board is in flight and controls are active. On the transition to flight from **Armed** the stored imu data is used to calibrate the angle and then playback the launch history. If launch from **UNKNOWN** it reads old data from flash to estimate its position. In this mode the barometer is also active providing an alternate source of information about the height and both barometer and imu are fed into the Kalman filter. In this mode it also stores its state in flash in case of a reboot. Finally this mode also engages active controls when the imu reads a safe acceleration for active controls. This mode finishes when the angle is 30 degrees to be compliant with competition rules.
-- **Done**: The flight has been finished and the board should retract the blades and idle.
+- **UNARMED**: An idle mode waiting for the arm switch (it records imu data in this mode)
+- **ARMED**: An idle mode where it waits and records imu data waiting for a consistent launch signal from the imu
+- **FLIGHT**: The board is in flight and controls are active. On the transition to flight from **Armed** the stored imu data is used to calibrate the angle and then playback the launch history. If launch from **UNKNOWN** it reads old data from flash to estimate its position. In this mode the barometer is also active providing an alternate source of information about the height and both barometer and imu are fed into the Kalman filter. In this mode it also stores its state in flash in case of a reboot. Finally this mode also engages active controls when the imu reads a safe acceleration for active controls. This mode finishes when the angle is 30 degrees to be compliant with competition rules.
+- **DONE**: The flight has been finished and the board should retract the blades and idle.
+
+We currently estimate our state with a Kalman filter that has a two variable state. The height from ground *h* and velocity in the direction of the rocket *v*. We assume that the zenith angle is relatively constant and that all motion is in the direction of the rocket.
 
 ## Team
 
