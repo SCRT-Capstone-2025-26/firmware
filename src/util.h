@@ -79,7 +79,7 @@ static RGB MODE_TO_COLOR[] = {
 #define UNKNOWN_WAIT        2000
 #define DEBUG_BOOT_DELAY    3000
 
-#define SECONDS_TO_MILLIS 1000.0
+#define SECONDS_TO_MILLIS 1000.0f
 #define GYRO_TO_RADPS     (0.001f * DEG_TO_RAD)
 
 #define SERVO_FREQ  300.0f
@@ -184,7 +184,9 @@ const Eigen::Vector3f GYRO_BIAS(0.0020154851083784846f, 0.0032312920667005307f, 
 #define ARM_OFF HIGH
 
 // Can't be lower due to barometer bug yet
-#define WATCHDOG_MS 20
+#define WATCHDOG_MS             20
+// Clearing flash is quite slow
+#define WATCHDOG_MS_CLEAR_FLASH (45 * SECONDS_TO_MILLIS)
 
 // These functions are based on the arduino delay, but feed the watchdog
 void sleep(Millis target_time);

@@ -29,11 +29,16 @@ struct WriteArgs {
   size_t size;
 };
 
+#ifndef NO_FLASH_BUF
 alignas(FLASH_ALIGN) __in_flash("flash_buf") State flash_buf[BUF_ELEMS];
+#endif
 size_t flash_index = INVALID_FLASH_INDEX;
 
 // Binary searches the array for the last valid entry
 bool flash_reinit(State *state) {
+#ifdef NO_FLASH_BUF
+  return false;
+#else
   size_t low = -1;
   size_t high = BUF_ELEMS;
 
@@ -57,6 +62,7 @@ bool flash_reinit(State *state) {
 
   *state = flash_buf[low];
   return true;
+#endif
 }
 
 void _clear_flash_buf(void *_) {
@@ -68,6 +74,9 @@ void _clear_flash_buf(void *_) {
 
 // NOTE: Maybe this disables interrupts for too long
 bool clear_flash_buf() {
+#ifdef NO_FLASH_BUF
+  return true;
+#else
   // Check the logging core is ready for a flash write
   if (!flash_ready) {
     return false;
@@ -77,6 +86,7 @@ bool clear_flash_buf() {
 
   flash_index = 0;
   return true;
+#endif
 }
 
 void _flash_write(void *_args) {
@@ -87,6 +97,9 @@ void _flash_write(void *_args) {
 }
 
 bool flash_push_state(State &&state) {
+#ifdef NO_FLASH_BUF
+  return true;
+#else
   if (flash_index == INVALID_FLASH_INDEX || flash_index == BUF_ELEMS) {
     return false;
   }
@@ -126,6 +139,7 @@ bool flash_push_state(State &&state) {
   args.page   = page;
   args.size   = write_size;
   return flash_safe_execute(_flash_write, page, 0 /*The timeout_ms is not implemented anyway*/) == PICO_OK;
+#endif
 }
 
 // The overriden flash safety functions

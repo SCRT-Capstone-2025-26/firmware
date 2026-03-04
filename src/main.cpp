@@ -248,7 +248,11 @@ void ground_boot() {
   log_message("Clearing flash");
   sleep(1000);
   log_message("1learing flash");
+
+  // We mess with the watchdog here since this could take a long time and we are on the ground and safe
+  watchdog_enable(WATCHDOG_MS_CLEAR_FLASH, 1);
   clear_flash_buf();
+  watchdog_enable(WATCHDOG_MS, 1);
 
   log_message("Waiting on log core");
   // Wait for the other core to finish booting
