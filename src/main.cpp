@@ -7,6 +7,7 @@
 #include <hardware/watchdog.h>
 #include <cstdint>
 
+#include "flash.h"
 #include "pins.h"
 #include "state.h"
 #include "logging.h"
@@ -45,6 +46,8 @@ bool acc_high_g = true;
 //  count otherwise (there is still a one measurement double possible depending on the
 //  the order written, but there is only so much we can do)
 bool acc_fifo_switched = true;
+
+Millis next_flash_write = 0;
 
 // The servo has an operating frequency of 50-300Hz
 RP2040_PWM servo(SERVO_1, (float)SERVO_FREQ, 0.0f);
@@ -102,6 +105,10 @@ void push_mode(BoardMode mode) {
 
   leds[LED_STATUS] = MODE_TO_COLOR[mode];
   led_show();
+
+  if (mode == FLYING) {
+    Millis next_flash_write = 0;
+  }
 
   board_mode = mode;
   last_mode_change = millis();
@@ -244,6 +251,13 @@ void setup() {
 // It could take some time to run (because it waits for the log core), but it shouldn't because the
 //  log core should boot fast
 void ground_boot() {
+  log_message("Clearing flash");
+
+  // We mess with the watchdog here since this could take a long time and we are on the ground and safe
+  watchdog_enable(WATCHDOG_MS_CLEAR_FLASH, 1);
+  clear_flash_buf();
+  watchdog_enable(WATCHDOG_MS, 1);
+
   log_message("Waiting on log core");
   // Wait for the other core to finish booting
   // This returns when the other core has booted with whether it has created log files
@@ -263,6 +277,18 @@ void update_mode() {
     case UNKNOWN:
       // If booted during flight we should know our before 
       if (rest_state.try_init_flying_boot(flight_state)) {
+        State state;
+        // TODO: Add noise here maybe
+        if (flash_reinit(&state)) {
+          flight_state.state(0) = state.h;
+          flight_state.state(1) = state.v;
+
+          flight_state.cov(0, 0) = state.h_cov;
+          flight_state.cov(1, 0) = state.hv_cov;
+          flight_state.cov(0, 1) = state.hv_cov;
+          flight_state.cov(1, 1) = state.v_cov;
+        }
+
         push_mode(FLYING);
       } else if (millis_in_mode() >= UNKNOWN_WAIT) {
         ground_boot();
@@ -561,7 +587,23 @@ void loop() {
   // Update the servo based on the state object
   update_servo();
 
+  // This is slow from UNKNOWN to UNARMED
+  //  however we don't care since it is on the ground flight
+  //  state and so losing accelerometer data in the fifo
+  //  doesn't really matter
   update_mode();
+
+  if (millis_in_mode() >= next_flash_write) {
+    flash_push_state(State(
+      flight_state.state(0),
+      flight_state.state(1),
+      flight_state.cov(0, 0),
+      flight_state.cov(1, 1),
+      flight_state.cov(0, 1)
+    ));
+
+    next_flash_write += FLASH_SAMPLE_RATE;
+  }
 
   watchdog_update();
 }
