@@ -35,7 +35,8 @@
   "name": "BEAVS 6",
   "upload": {
     "maximum_ram_size": 262144,
-    "_comment": "The flash size is 16777216. 16 MiB, but it flashes better when smaller.",
+    "_comment1": "The flash size is 16777216. 16 MiB, but it flashes better when smaller.",
+    "_comment2": "NOTE: This size is used in flash.cpp ",
     "maximum_size": 4194304,
     "require_upload_port": true,
     "native_usb": true,

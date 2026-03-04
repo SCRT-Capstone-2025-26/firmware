@@ -13,12 +13,14 @@
 // This must include a zero
 #define VALID_FLASH_ENTRY 0
 
-// This is the desired buffer size
-#define BUF_MAX_MEM    (1024 * 1024 * 2)
-// This will align to FLASH_PAGE_SIZE since FLASH_SECTOR_SIZE is a multiple of page size
-#define FLASH_ALIGN    FLASH_SECTOR_SIZE
-// This is the buffer size truncated to make sure that it is aligned to the flash pages
-#define BUF_MEM        (BUF_MAX_MEM & ~(FLASH_ALIGN - 1))
+// This is the buffer size (it is 2 MiB)
+// TODO: Use a script to inject these constants into the compilation
+// NOTE: This comes from the filesystem size in platformio.ini if that changes this could cause
+//  nasty problems
+#define FS_SIZE    2097152
+// NOTE: This comes from the maximum_size in beavs.json in upload if that changes this could cause
+//  nasty problems
+#define FLASH_SIZE 4194304
 // This is the number of elements we can actually fit in the buffer
 #define BUF_ELEMS      (BUF_MEM / sizeof(State))
 
@@ -33,16 +35,12 @@ struct WriteArgs {
   size_t size;
 };
 
-#ifndef NO_FLASH_BUF
-alignas(FLASH_ALIGN) __in_flash("flash_buf") State flash_buf[BUF_ELEMS];
-#endif
+// See https://arduino-pico.readthedocs.io/en/latest/platformio.html#flash-size for this
+State *flash_buf = (State *)(FLASH_SIZE - FS_SIZE - 4096);
 size_t flash_index = INVALID_FLASH_INDEX;
 
 // Binary searches the array for the last valid entry
 bool flash_reinit(State *state) {
-#ifdef NO_FLASH_BUF
-  return false;
-#else
   size_t low = -1;
   size_t high = BUF_ELEMS;
 
@@ -66,21 +64,15 @@ bool flash_reinit(State *state) {
 
   *state = flash_buf[low];
   return true;
-#endif
 }
 
 void _clear_flash_buf(void *addr) {
-#ifndef NO_FLASH_BUF
   // A potentially slow call
   // It has no return so we just have to trust the function
   flash_range_erase((uint32_t)addr - XIP_BASE, FLASH_SECTOR_SIZE);
-#endif
 }
 
 bool clear_flash_buf() {
-#ifdef NO_FLASH_BUF
-  return true;
-#else
   // Check the logging core is ready for a flash write
   if (!flash_ready) {
     return false;
@@ -89,14 +81,28 @@ bool clear_flash_buf() {
   // Since BUF_MEM is a multiple of FLASH_SECTOR_SIZE and _clear_flash_buf clears a SECTOR
   //  every call this is a valid loop
   for (size_t i = 0; i < BUF_MEM; i += FLASH_SECTOR_SIZE) {
-    flash_safe_execute(_clear_flash_buf, (void *)((size_t)&flash_buf + i), 0 /*The timeout_ms is not implemented anyway*/);
+    void *erase_mem = (void *)((size_t)&flash_buf + i);
+
+    // We can check if the flash is already cleared and avoid wasting time
+    bool cleared = true;
+    // This could be faster with bigger blocks than bytes
+    for (size_t j = 0; j < FLASH_SECTOR_SIZE; j++) {
+      if (((uint8_t *)erase_mem)[j] != 0xFF) {
+        cleared = false;
+        break;
+      }
+    }
+
+    if (!cleared) {
+      flash_safe_execute(_clear_flash_buf, erase_mem, 0 /*The timeout_ms is not implemented anyway*/);
+    }
+
     // This lets the other core run a bit and feeds the watchdog
     sleep(CLEAR_SLEEP_MS);
   }
 
   flash_index = 0;
   return true;
-#endif
 }
 
 void _flash_write(void *_args) {
@@ -107,10 +113,7 @@ void _flash_write(void *_args) {
 }
 
 bool flash_push_state(State &&state) {
-#ifdef NO_FLASH_BUF
-  return true;
-#else
-  if (flash_index == INVALID_FLASH_INDEX || flash_index == BUF_ELEMS) {
+  if (flash_index == INVALID_FLASH_INDEX || flash_index >= BUF_ELEMS) {
     return false;
   }
 
@@ -149,7 +152,6 @@ bool flash_push_state(State &&state) {
   args.page   = page;
   args.size   = write_size;
   return flash_safe_execute(_flash_write, page, 0 /*The timeout_ms is not implemented anyway*/) == PICO_OK;
-#endif
 }
 
 // The overriden flash safety functions
