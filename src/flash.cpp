@@ -103,7 +103,7 @@ void _flash_write(void *_args) {
 }
 
 bool flash_push_state(State &&state) {
-  if (flash_index == INVALID_FLASH_INDEX || flash_index >= BUF_ELEMS) {
+  if (flash_index == INVALID_FLASH_INDEX || flash_index >= FLASH_BUF_ELEMS) {
     return false;
   }
 

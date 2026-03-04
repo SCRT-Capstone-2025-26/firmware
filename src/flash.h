@@ -19,18 +19,27 @@ struct State {
 
   State(float h, float v, float h_cov, float v_cov, float hv_cov) : h(h), v(v), h_cov(h_cov), v_cov(v_cov), hv_cov(hv_cov) {
   }
+
+  State() : h(0.0f), v(0.0f), h_cov(0.0f), v_cov(0.0f), hv_cov(0.0f) {
+  }
 } __attribute__((packed));
 
 // This is the buffer size (it is 2 MiB)
 // TODO: Use a script to inject these constants into the compilation
 // NOTE: This comes from the filesystem size in platformio.ini if that changes this could cause
 //  nasty problems
-#define FS_SIZE    2097152
+#define FS_SIZE         2097152
+#define BUF_MEM         FS_SIZE
 // NOTE: This comes from the maximum_size in beavs.json in upload if that changes this could cause
 //  nasty problems
-#define FLASH_SIZE 4194304
+#define FLASH_SIZE      4194304
 // This is the number of elements we can actually fit in the buffer
-#define FLASH_BUF_ELEMS      (BUF_MEM / sizeof(State))
+#define FLASH_BUF_ELEMS (BUF_MEM / sizeof(State))
+
+static_assert(BUF_MEM % FLASH_SECTOR_SIZE == 0, "Data buffer must be divisible by FLASH_SECTOR_SIZE");
+// Technically this follows from the first condition
+static_assert(BUF_MEM % FLASH_PAGE_SIZE == 0, "Data buffer must be divisible by FLASH_PAGE_SIZE");
+static_assert(BUF_MEM <= FS_SIZE, "Data buffer must fit in the FS");
 
 // Finds where the flash buffer was last updated and inits in the flash
 // index to that. Also returns that last_state or flash if 0
