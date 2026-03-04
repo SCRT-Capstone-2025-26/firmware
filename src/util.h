@@ -185,8 +185,11 @@ const Eigen::Vector3f GYRO_BIAS(0.0020154851083784846f, 0.0032312920667005307f, 
 
 // Can't be lower due to barometer bug yet
 #define WATCHDOG_MS             20
-// Clearing flash is quite slow
-#define WATCHDOG_MS_CLEAR_FLASH (45 * SECONDS_TO_MILLIS)
+// Clearing flash is quite slow (the core does feed the watchdog while clearing)
+//  but the minimum sector clear can be like 100ms I think at worst case it 
+//  doesn't really matter since the flash is only cleared on the ground when booting
+//  so we can have it be extra long
+#define WATCHDOG_MS_CLEAR_FLASH 200
 
 // These functions are based on the arduino delay, but feed the watchdog
 void sleep(Millis target_time);

@@ -22,6 +22,10 @@
 // This is the number of elements we can actually fit in the buffer
 #define BUF_ELEMS      (BUF_MEM / sizeof(State))
 
+// This allows the other core to do a bit of work while the flash is being cleared
+// We are not concerned about time sicne clearing is already slow
+#define CLEAR_SLEEP_MS     2
+
 struct WriteArgs {
   // In flash space (ie & - XIP_BASE)
   void *memory;
@@ -65,14 +69,14 @@ bool flash_reinit(State *state) {
 #endif
 }
 
-void _clear_flash_buf(void *_) {
+void _clear_flash_buf(void *addr) {
+#ifndef NO_FLASH_BUF
   // A potentially slow call
   // It has no return so we just have to trust the function
-  // BUF_MEM is correctly size see above
-  flash_range_erase((uint32_t)&flash_buf - XIP_BASE, BUF_MEM);
+  flash_range_erase((uint32_t)addr - XIP_BASE, FLASH_SECTOR_SIZE);
+#endif
 }
 
-// NOTE: Maybe this disables interrupts for too long
 bool clear_flash_buf() {
 #ifdef NO_FLASH_BUF
   return true;
@@ -82,7 +86,13 @@ bool clear_flash_buf() {
     return false;
   }
 
-  flash_safe_execute(_clear_flash_buf, NULL, 0 /*The timeout_ms is not implemented anyway*/);
+  // Since BUF_MEM is a multiple of FLASH_SECTOR_SIZE and _clear_flash_buf clears a SECTOR
+  //  every call this is a valid loop
+  for (size_t i = 0; i < BUF_MEM; i += FLASH_SECTOR_SIZE) {
+    flash_safe_execute(_clear_flash_buf, (void *)((size_t)&flash_buf + i), 0 /*The timeout_ms is not implemented anyway*/);
+    // This lets the other core run a bit and feeds the watchdog
+    sleep(CLEAR_SLEEP_MS);
+  }
 
   flash_index = 0;
   return true;

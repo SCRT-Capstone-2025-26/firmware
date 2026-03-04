@@ -23,6 +23,8 @@ struct State {
 bool flash_reinit(State *last_state);
 
 // NOTE: This will be quite slow
+// NOTE: This does feed to watchdog and let the other core run a bit, but it can't feed faster than it takes to
+//  clear a sector
 bool clear_flash_buf();
 
 // NOTE: This can only be called on the main CPU and forces the other CPU into lockout mode

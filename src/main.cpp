@@ -246,8 +246,6 @@ void setup() {
 //  log core should boot fast
 void ground_boot() {
   log_message("Clearing flash");
-  sleep(1000);
-  log_message("1learing flash");
 
   // We mess with the watchdog here since this could take a long time and we are on the ground and safe
   watchdog_enable(WATCHDOG_MS_CLEAR_FLASH, 1);
@@ -571,6 +569,10 @@ void loop() {
   // Update the servo based on the state object
   update_servo();
 
+  // This is slow from UNKNOWN to UNARMED
+  //  however we don't care since it is on the ground flight
+  //  state and so losing accelerometer data in the fifo
+  //  doesn't really matter
   update_mode();
 
   watchdog_update();
