@@ -11,7 +11,11 @@ struct ModeChange {
   BoardMode next;
 };
 
-typedef std::variant<String, ModeChange> Message;
+struct Error {
+  String content;
+};
+
+typedef std::variant<String, Error, ModeChange> Message;
 
 struct __attribute__((packed)) AccCalib {
   float x;
