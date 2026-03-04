@@ -10,6 +10,12 @@
 typedef unsigned long Millis;
 typedef unsigned long Micros;
 
+enum BaroState {
+  IDLE,
+  READING_TEMP,
+  READING_PRES
+};
+
 // Booting = The board is initializing components in the setup function (which could be run on a power failure or watchdog reboot)
 // Unknown = Right after booting to determine if the board is flying right now or not
 // Unarmed = The board demos the servo and then idles
