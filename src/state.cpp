@@ -14,11 +14,6 @@
 //  version has been implmented yet)
 // NOTE: It is worth considering what parts of this could be fixed point
 
-// TODO: Test performance
-// TODO: It would make more sense to store the baro input and then wait until
-//  the imu reads data at a time past the baro read time and then apply the baro data
-//  that way it is always correclty applied at the right time
-
 void FlightState::push_baro(float pressure, float temperature) {
   // Estimate from pressure and temperature
   // This is the formula used by https://github.com/RobTillaart/MS5611

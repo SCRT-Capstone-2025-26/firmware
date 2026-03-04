@@ -4,7 +4,7 @@
 #include <pico/platform.h>
 #include <variant>
 #include <tuple>
-// TODO: Possibly add radio
+// TODO: Add radio
 
 #include "logging.h"
 #include "eventqueue.h"
@@ -12,7 +12,6 @@
 #include "util.h"
 
 // This file handles the code that runs on the other core and handles the logging for Beavs
-// TODO: Look into real string generation instead of just adding strings together
 
 // See https://stackoverflow.com/questions/64017982/c-equivalent-of-rust-enums
 // This allows rust like enums with the c++ variant

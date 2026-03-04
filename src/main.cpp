@@ -15,10 +15,7 @@
 #include "util.h"
 
 // NOTE: This code uses millis() extensively and assumes it will not overflow (it will overflow in >40 days and that is not intended usage)
-// TODO: Look into gyro saturation
 // TODO: Look into pressure drop when hitting around mach numbers
-// TODO: Look at the readability of the watchdog feeding
-// TODO: Look into writing to flash for reboots (this is probably not useful since the time is reset)
 
 BoardMode board_mode = BOOTING;
 Millis last_mode_change = 0;
