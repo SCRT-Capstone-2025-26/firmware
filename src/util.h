@@ -68,7 +68,19 @@ static RGB MODE_TO_COLOR[] = {
   RGB(1, 1, 1),
 };
 
+// The component that failed with the special
+// case of a fail now error and do nothing err
+enum FailComp {
+  FAIL_NOW_ERR,
+  DO_NOTHING_ERR,
+  BARO_ERR,
+  IMU_ERR
+};
+
 // TODO: Relocate this constants
+
+#define BARO_ERR_LIM 10
+#define IMU_ERR_LIM  30
 
 #define LED_POSITIVE RGB(0, 1, 0)
 #define LED_NEGATIVE RGB(1, 0, 0)

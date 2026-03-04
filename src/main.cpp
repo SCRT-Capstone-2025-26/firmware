@@ -49,6 +49,9 @@ bool acc_fifo_switched = true;
 
 Millis next_flash_write = 0;
 
+uint32_t baro_errors = 0;
+uint32_t imu_errors = 0;
+
 // The servo has an operating frequency of 50-300Hz
 RP2040_PWM servo(SERVO_1, (float)SERVO_FREQ, 0.0f);
 
@@ -115,20 +118,29 @@ void push_mode(BoardMode mode) {
 }
 
 // Pushing LED_STATUS gets overwritten immediatly so is equivalent to a failure with no origin
-void note_error(String &&message, LEDs failure_led = LED_STATUS) {
+void note_error(String &&message, FailComp failure_comp) {
   log_message(Error{message});
 
-  if (failure_led != LED_STATUS) {
-    leds[failure_led] = LED_NEGATIVE;
-    // Push mode updates the LEDS so we don't need to call led_show
-    led_show();
+  switch (failure_comp) {
+    case BARO_ERR:
+      baro_errors++;
+      leds[LED_BARO] = LED_NEGATIVE;
+      led_show();
+    case IMU_ERR:
+      imu_errors++;
+      leds[LED_IMU] = LED_NEGATIVE;
+      led_show();
+  }
+
+  if (baro_errors >= BARO_ERR_LIM || imu_errors >= IMU_ERR_LIM || failure_comp == FAIL_NOW_ERR) {
+    push_mode(FAILURE);
   }
 }
 
 Millis millis_in_mode() {
   // This should never happen
   if (last_mode_change > millis()) {
-    note_error("Mode changed marked in future");
+    note_error("Mode changed marked in future", DO_NOTHING_ERR);
     return 0;
   }
 
@@ -241,8 +253,7 @@ void setup() {
     }
   } else {
     // The board has failed to init
-    note_error("Init failed");
-    push_mode(FAILURE);
+    note_error("Init failed", FAIL_NOW_ERR);
   }
 
   watchdog_update();
@@ -330,8 +341,7 @@ void update_mode() {
       break;
 
     default:
-      note_error("Invalid mode");
-      push_mode(FAILURE);
+      note_error("Invalid mode", FAIL_NOW_ERR);
 
       break;
   }
@@ -370,8 +380,7 @@ void update_servo() {
   float duty_percent = (servo_percent * (SERVO_DUTY_MAX - SERVO_DUTY_MIN)) + SERVO_DUTY_MIN;
   // This does only returns false configuration errors so we just fail if this returns false
   if (!servo.setPWM(SERVO_1, SERVO_FREQ, duty_percent * 100.0f)) {
-    note_error("PWM config error");
-    push_mode(FAILURE);
+    note_error("PWM config error", FAIL_NOW_ERR);
   }
   watchdog_update();
 }
@@ -386,7 +395,7 @@ void step_sample_baro() {
         //  so reading it first creates less of a time delay issue
         // Set the baro_read_time to the sample delay
         if (!baro.startReadRawTemp(&baro_read_time)) {
-          note_error("Baro temp failure", LED_BARO);
+          note_error("Baro temp failure", BARO_ERR);
           // This is not critical we just reset the read
           baro_state = IDLE;
         }
@@ -403,7 +412,7 @@ void step_sample_baro() {
       if (millis() >= baro_read_time) {
         // Set the baro_read_time to the sample delay
         if (!baro.stepReadRawPres(&baro_read_time)) {
-          note_error("Baro pres failure", LED_BARO);
+          note_error("Baro pres failure", BARO_ERR);
           // This is not critical we just reset the read
           baro_state = IDLE;
         }
@@ -419,7 +428,7 @@ void step_sample_baro() {
       //  or send the reading to flight state and restart the read
       if (millis() >= baro_read_time) {
         if (!baro.finishReading()) {
-          note_error("Baro finish failure", LED_BARO);
+          note_error("Baro finish failure", BARO_ERR);
           // This is not critical we just reset the read
           baro_state = IDLE;
         }
@@ -430,7 +439,7 @@ void step_sample_baro() {
           // We now restart the sample (we could use a switch fallthrough here)
           // Set the baro_read_time to the sample delay
           if (!baro.startReadRawTemp(&baro_read_time)) {
-            note_error("Baro temp after finish failure", LED_BARO);
+            note_error("Baro temp after finish failure", BARO_ERR);
             // This is not critical we just reset the read
             baro_state = IDLE;
           }
@@ -464,7 +473,7 @@ bool set_acc_mode(bool new_high_g) {
     }
 
     if (imu.Disable_HG_X() != ISM6HG256X_OK) {
-      note_error("Failed to disable HG", LED_IMU);
+      note_error("Failed to disable HG", IMU_ERR);
     }
   } else {
     if (imu.Enable_HG_X() != ISM6HG256X_OK) {
@@ -472,7 +481,7 @@ bool set_acc_mode(bool new_high_g) {
     }
 
     if (imu.Disable_X() != ISM6HG256X_OK) {
-      note_error("Failed to disable non-HG", LED_IMU);
+      note_error("Failed to disable non-HG", IMU_ERR);
     }
   }
 
@@ -499,7 +508,7 @@ void sample_imu() {
 
   uint16_t samples;
   if (imu.FIFO_Get_Num_Samples(&samples) != ISM6HG256X_OK) {
-    note_error("Sample read failed", LED_IMU);
+    note_error("Sample read failed", IMU_ERR);
     return;
   }
 
@@ -507,11 +516,11 @@ void sample_imu() {
   for (uint16_t i = 0; i < samples; i++) {
     // We could try recovering the read on errors, but I think it is best to just leave the loop
     if (imu.FIFO_Get_Tag(&tag) != ISM6HG256X_OK) {
-      note_error("Tag read failed", LED_IMU);
+      note_error("Tag read failed", IMU_ERR);
       break;
     }
     if (imu.FIFO_Get_Data((uint8_t *)reading_data) != ISM6HG256X_OK) {
-      note_error("Data read failed", LED_IMU);
+      note_error("Data read failed", IMU_ERR);
       break;
     }
 
@@ -581,7 +590,7 @@ void sample_imu() {
         break;
 
       default:
-        note_error("Unkown tag read", LED_IMU);
+        note_error("Unkown tag read", IMU_ERR);
         break;
     }
 
@@ -592,7 +601,7 @@ void sample_imu() {
       //  on if the senor becomes maxed out
       float sqr_mag = acc_axis.dot(acc_axis);
       if (!set_acc_mode(sqr_mag >= ACC_HIGH_G_SWITCH)) {
-        note_error("Mode switch failed", LED_IMU);
+        note_error("Mode switch failed", IMU_ERR);
       }
     }
 
