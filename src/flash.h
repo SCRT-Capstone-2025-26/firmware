@@ -9,14 +9,28 @@
 
 // This may need to be compressed
 struct State {
-  uint8_t valid;
+  uint8_t valid = 0;
   float h;
   float v;
   // We save a spot on the covariance matrix because it is symmetric
   float h_cov;
   float v_cov;
   float hv_cov;
+
+  State(float h, float v, float h_cov, float v_cov, float hv_cov) : h(h), v(v), h_cov(h_cov), v_cov(v_cov), hv_cov(hv_cov) {
+  }
 } __attribute__((packed));
+
+// This is the buffer size (it is 2 MiB)
+// TODO: Use a script to inject these constants into the compilation
+// NOTE: This comes from the filesystem size in platformio.ini if that changes this could cause
+//  nasty problems
+#define FS_SIZE    2097152
+// NOTE: This comes from the maximum_size in beavs.json in upload if that changes this could cause
+//  nasty problems
+#define FLASH_SIZE 4194304
+// This is the number of elements we can actually fit in the buffer
+#define FLASH_BUF_ELEMS      (BUF_MEM / sizeof(State))
 
 // Finds where the flash buffer was last updated and inits in the flash
 // index to that. Also returns that last_state or flash if 0

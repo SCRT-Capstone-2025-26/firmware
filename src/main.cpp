@@ -47,6 +47,8 @@ bool acc_high_g = true;
 //  the order written, but there is only so much we can do)
 bool acc_fifo_switched = true;
 
+Millis next_flash_write = 0;
+
 // The servo has an operating frequency of 50-300Hz
 RP2040_PWM servo(SERVO_1, (float)SERVO_FREQ, 0.0f);
 
@@ -103,6 +105,10 @@ void push_mode(BoardMode mode) {
 
   leds[LED_STATUS] = MODE_TO_COLOR[mode];
   led_show();
+
+  if (mode == FLYING) {
+    Millis next_flash_write = 0;
+  }
 
   board_mode = mode;
   last_mode_change = millis();
@@ -271,6 +277,18 @@ void update_mode() {
     case UNKNOWN:
       // If booted during flight we should know our before 
       if (rest_state.try_init_flying_boot(flight_state)) {
+        State state;
+        // TODO: Add noise here maybe
+        if (flash_reinit(&state)) {
+          flight_state.state(0) = state.h;
+          flight_state.state(1) = state.v;
+
+          flight_state.cov(0, 0) = state.h_cov;
+          flight_state.cov(1, 0) = state.hv_cov;
+          flight_state.cov(0, 1) = state.hv_cov;
+          flight_state.cov(1, 1) = state.v_cov;
+        }
+
         push_mode(FLYING);
       } else if (millis_in_mode() >= UNKNOWN_WAIT) {
         ground_boot();
@@ -574,6 +592,18 @@ void loop() {
   //  state and so losing accelerometer data in the fifo
   //  doesn't really matter
   update_mode();
+
+  if (millis_in_mode() >= next_flash_write) {
+    flash_push_state(State(
+      flight_state.state(0),
+      flight_state.state(1),
+      flight_state.cov(0, 0),
+      flight_state.cov(1, 1),
+      flight_state.cov(0, 1)
+    ));
+
+    next_flash_write += FLASH_SAMPLE_RATE;
+  }
 
   watchdog_update();
 }

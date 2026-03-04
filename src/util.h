@@ -191,6 +191,11 @@ const Eigen::Vector3f GYRO_BIAS(0.0020154851083784846f, 0.0032312920667005307f, 
 //  so we can have it be extra long
 #define WATCHDOG_MS_CLEAR_FLASH 200
 
+
+// The expected time beavs is useful in a flight
+#define USEFUL_FLIGHT_TIME_MS (20 * SECONDS_TO_MILLIS)
+#define FLASH_SAMPLE_RATE     (USEFUL_FLIGHT_TIME_MS / FLASH_BUF_ELEMS)
+
 // These functions are based on the arduino delay, but feed the watchdog
 void sleep(Millis target_time);
 bool sleep_to(Millis target_time);

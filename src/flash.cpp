@@ -13,17 +13,6 @@
 // This must include a zero
 #define VALID_FLASH_ENTRY 0
 
-// This is the buffer size (it is 2 MiB)
-// TODO: Use a script to inject these constants into the compilation
-// NOTE: This comes from the filesystem size in platformio.ini if that changes this could cause
-//  nasty problems
-#define FS_SIZE    2097152
-// NOTE: This comes from the maximum_size in beavs.json in upload if that changes this could cause
-//  nasty problems
-#define FLASH_SIZE 4194304
-// This is the number of elements we can actually fit in the buffer
-#define BUF_ELEMS      (BUF_MEM / sizeof(State))
-
 // This allows the other core to do a bit of work while the flash is being cleared
 // We are not concerned about time sicne clearing is already slow
 #define CLEAR_SLEEP_MS     2
@@ -40,9 +29,10 @@ State *flash_buf = (State *)(FLASH_SIZE - FS_SIZE - 4096);
 size_t flash_index = INVALID_FLASH_INDEX;
 
 // Binary searches the array for the last valid entry
+// TODO: Verify
 bool flash_reinit(State *state) {
   size_t low = -1;
-  size_t high = BUF_ELEMS;
+  size_t high = FLASH_BUF_ELEMS;
 
   // Basic binary search
   while (low + 1 != high) {
