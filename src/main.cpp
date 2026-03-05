@@ -34,6 +34,17 @@
 #define ACC_FS 4
 #define ACC_HIGH_G_FS 64
 
+// We treat very large or small values as errors to avoid hitting an extreme tail in the kalman filter
+// TODO: Detrmine these
+#define MAX_PRES 0
+#define MIN_PRES 0
+
+#define MAX_TEMP 0
+#define MIN_TEMP 0
+
+#define MIN_ACC_SQR_MAG 0
+#define MIN_ACC_SQR_MAG 0
+
 // The value where the acc switch froms low g to high g
 // Currently ACC_FS * GRAVITY_ACC is roughly the max acc reading
 //  of the low so when 80% of that is reached it switches
@@ -391,6 +402,7 @@ void step_sample_baro() {
           note_error("Baro temp failure", BARO_ERR);
           // This is not critical we just reset the read
           baro_state = IDLE;
+          break;
         }
 
         // Then add the current time so it is the future time when the delay is done
@@ -408,6 +420,7 @@ void step_sample_baro() {
           note_error("Baro pres failure", BARO_ERR);
           // This is not critical we just reset the read
           baro_state = IDLE;
+          break;
         }
 
         // Then add the current time so it is the future time when the delay is done
@@ -424,9 +437,20 @@ void step_sample_baro() {
           note_error("Baro finish failure", BARO_ERR);
           // This is not critical we just reset the read
           baro_state = IDLE;
+          break;
         }
 
         if (board_mode == FLYING) {
+          float pres = baro.getPressure();
+          float temp = baro.getTemperature();
+
+          if (pres < MIN_PRES || pres > MAX_PRES || temp < MIN_TEMP || temp > MAX_TEMP) {
+            note_error("Suspicious baro reading", BARO_ERR);
+            // This is not critical we just reset the read
+            baro_state = IDLE;
+            break;
+          }
+
           flight_state.push_baro(baro.getPressure(), baro.getTemperature());
           write_data(Baro{baro.getPressure(), baro.getTemperature()});
 
@@ -436,6 +460,7 @@ void step_sample_baro() {
             note_error("Baro temp after finish failure", BARO_ERR);
             // This is not critical we just reset the read
             baro_state = IDLE;
+            break;
           }
 
           // Then add the current time so it is the future time when the delay is done
@@ -501,6 +526,11 @@ void sample_imu() {
   Eigen::Vector3f acc_axis;
   Eigen::Vector3f gyro_axis;
 
+  float sqr_mag;
+  // This is after the high and low pass filter
+  // If nothing the high and low pass filter we should probably go to high G mode
+  float filtered_sqr_mag = ACC_HIGH_G_SWITCH;
+
   uint16_t samples;
   if (imu.FIFO_Get_Num_Samples(&samples) != ISM6HG256X_OK) {
     note_error("Sample read failed", IMU_ERR);
@@ -554,6 +584,15 @@ void sample_imu() {
         acc_axis.z() = reading_data[2] * ACC_SENS;
         acc_axis -= ACC_BIAS;
 
+        sqr_mag = acc_axis.dot(acc_axis);
+        if (sqr_mag < MIN) {
+          note_error("Suspicious imu normal g reading", IMU_ERR);
+          // This is not critical we just skip the read
+          break;
+        } else {
+          filtered_sqr_mag = sqr_mag;
+        }
+
         if (board_mode == FLYING) {
           flight_state.push_acc(acc_axis, false);
         } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
@@ -581,6 +620,15 @@ void sample_imu() {
         acc_axis.z() = reading_data[2] * ACC_HIGH_G_SENS;
         acc_axis -= ACC_HIGH_G_BIAS;
 
+        sqr_mag = acc_axis.dot(acc_axis);
+        if (sqr_mag < MIN) {
+          note_error("Suspicious imu hg reading", IMU_ERR);
+          // This is not critical we just skip the read
+          break;
+        } else {
+          filtered_sqr_mag = sqr_mag;
+        }
+
         if (board_mode == FLYING) {
           flight_state.push_acc(acc_axis , true);
         } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
@@ -597,8 +645,7 @@ void sample_imu() {
     // We only use low-g mode once in flight because when waiting for launch
     //  we want high g mode to get the early few readings of the launch
     if (board_mode == FLYING && acc_axis_read) {
-      float sqr_mag = acc_axis.dot(acc_axis);
-      if (!set_acc_mode(sqr_mag >= ACC_HIGH_G_SWITCH)) {
+      if (!set_acc_mode(filtered_sqr_mag >= ACC_HIGH_G_SWITCH)) {
         note_error("Mode switch failed", IMU_ERR);
       }
     }
