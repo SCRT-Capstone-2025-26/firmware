@@ -40,8 +40,8 @@ struct __attribute__((packed)) Servo {
 
 struct __attribute__((packed)) Current {
   uint16_t voltage;
-  int16_t temp;
-  int16_t current;
+  int32_t temp;
+  int32_t current;
   uint32_t power;
 };
 

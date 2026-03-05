@@ -94,7 +94,7 @@ enum FailComp {
 #define WATCHDOG_MS_CLEAR_FLASH 200
 
 // The expected time beavs is useful in a flight
-#define USEFUL_FLIGHT_TIME_MS (20 * SECONDS_TO_MILLIS)
+#define USEFUL_FLIGHT_TIME_MS 20 * 1000
 #define FLASH_SAMPLE_RATE     (USEFUL_FLIGHT_TIME_MS / FLASH_BUF_ELEMS)
 
 #define DEBUG_BOOT_DELAY 3000

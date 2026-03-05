@@ -54,8 +54,7 @@
 #define MAX_TEMP 0
 #define MIN_TEMP 0
 
-#define MIN_ACC_SQR_MAG 0
-#define MIN_ACC_SQR_MAG 0
+#define MAX_ACC_SQR_MAG 0
 
 // The value where the acc switch froms low g to high g
 // Currently ACC_FS * GRAVITY_ACC is roughly the max acc reading
@@ -88,7 +87,7 @@ FlightState flight_state = FlightState();
 RestState rest_state = RestState();
 
 bool servo_powered = false;
-float flight_servo_pecent;
+float flight_servo_percent;
 Millis flight_servo_last_ms;
 
 Millis baro_read_time;
@@ -310,7 +309,7 @@ void ground_boot() {
 // This is called every loop iteration and is responsible for managing the state transitions
 // Returns true if the mode changed
 void update_mode() {
-  Mode old_mode = board_mode;
+  BoardMode old_mode = board_mode;
 
   switch (board_mode) {
     case UNKNOWN:
@@ -322,7 +321,6 @@ void update_mode() {
         }
 
         push_mode(FLYING);
-        pushed_flying = true;
       } else if (millis_in_mode() >= UNKNOWN_WAIT) {
         ground_boot();
         push_mode(UNARMED);
@@ -342,8 +340,6 @@ void update_mode() {
       //  and we are in flight
       if (rest_state.try_init_flying(flight_state)) {
         push_mode(FLYING);
-        pushed_flying = true;
-
       }
 
       if (digitalRead(ARM_SWITCH) == ARM_OFF) {
@@ -410,15 +406,15 @@ void update_servo() {
     Millis dt = time - flight_servo_last_ms;
 
     float interp = std::exp(SERVO_SMOOTH_LN_MS * dt);
-    flight_servo_percent = (flight_servo_pecent * interp) + (servo_percent * (1.0f - interp));
-    servo_percent = flight_servo_pecent;
+    flight_servo_percent = (flight_servo_percent * interp) + (servo_percent * (1.0f - interp));
+    servo_percent = flight_servo_percent;
   } else if (board_mode == UNARMED) {
     // Just a generic parabola (maxed with 0) to generate the full range of motion over a few seconds
     // It is 0 at 1500 and 4500 millis and peaks at 1 since it is 0 at 1500 millis that gives
     // the servo 1500 (and for servo to be powered after UNKNOWN) to zero since we don't know its position
     // If it enters this mode before the servo is inited the parabola could be messed up
     // The (1.0f / x) is for optimization
-    float time = millis_in_mode() * (1.0f / SECONDS_TO_MILLIS);
+    float time = millis_in_mode() * 0.001f;
     servo_percent = max(-(time - 1.5f) * (time - 4.5f) * (1.0f / 2.25f), 0.0f);
   }
 
@@ -629,7 +625,7 @@ void sample_imu() {
         acc_axis -= ACC_BIAS;
 
         sqr_mag = acc_axis.dot(acc_axis);
-        if (sqr_mag < MIN) {
+        if (sqr_mag > MAX_ACC_SQR_MAG) {
           note_error("Suspicious imu normal g reading", IMU_ERR);
           // This is not critical we just skip the read
           break;
@@ -665,7 +661,7 @@ void sample_imu() {
         acc_axis -= ACC_HIGH_G_BIAS;
 
         sqr_mag = acc_axis.dot(acc_axis);
-        if (sqr_mag < MIN) {
+        if (sqr_mag > MAX_ACC_SQR_MAG) {
           note_error("Suspicious imu hg reading", IMU_ERR);
           // This is not critical we just skip the read
           break;

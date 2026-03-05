@@ -14,7 +14,7 @@ item_types = {
     b'G': ('<fff', Gyro),
     b'B': ('<ff', Baro),
     b'S': ('<f', Servo),
-    b'C': ('<HhhI', Servo),
+    b'C': ('<HiiI', Servo),
 }
 
 # Can unpack_from be used?
