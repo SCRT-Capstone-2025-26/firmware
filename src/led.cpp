@@ -4,8 +4,6 @@
 #include "util.h"
 #include "pins.h"
 
-// TODO: Investigate the seemlingly needed sleeps
-
 RGB leds[6];
 
 RGB::RGB(uint8_t r, uint8_t g, uint8_t b) {

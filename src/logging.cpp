@@ -1,9 +1,10 @@
 #include <atomic>
 #include <SdFat.h>
+#include <cstddef>
 #include <pico/platform.h>
 #include <variant>
 #include <tuple>
-// TODO: Possibly add radio
+// TODO: Add radio
 
 #include "logging.h"
 #include "eventqueue.h"
@@ -11,7 +12,6 @@
 #include "util.h"
 
 // This file handles the code that runs on the other core and handles the logging for Beavs
-// TODO: Look into real string generation instead of just adding strings together
 
 // See https://stackoverflow.com/questions/64017982/c-equivalent-of-rust-enums
 // This allows rust like enums with the c++ variant
@@ -27,12 +27,11 @@ auto match(Val &&val, Ts... ts) {
 
 std::atomic_bool log_booted(false);
 std::atomic<bool> sd_failure;
+std::atomic<bool> flash_ready(false);
 
 SdFs sd;
 FsFile log_file;
 FsFile data_file;
-// Calib is a binary file there is a reader script in analysis
-FsFile calib_file;
 
 // This is a class to put logs in the queue from the main core
 struct LogEvent {
@@ -41,9 +40,14 @@ struct LogEvent {
   Message value;
 };
 
+struct DataEvent {
+  Millis timestamp;
+  Data value;
+};
+
 // This is thread safe to store the events put in the queue
 // Should be big enough for boot events to build up before being cleared
-EventQueue<std::variant<LogEvent, CalibData>, 64> events;
+EventQueue<std::variant<LogEvent, DataEvent>, 64> events;
 // Is set to time if there is a log and events is full
 // If there are two fails only one is guarranteed to work
 std::atomic_bool event_write_fail;
@@ -57,11 +61,11 @@ void log_message(Message &&content) {
 }
 
 // This should be call by the main core
-void write_calib(CalibData &&data) {
-  if (!events.putQ(data)) {
-    // If we fail to write then we mark that
-    event_write_fail = true;
-  }
+void write_data(Data &&data) {
+  // if (!events.putQ(DataEvent{millis(), data})) {
+  //   // If we fail to write then we mark that
+  //   event_write_fail = true;
+  // }
 }
 
 // This should be called from the other core to confirm that this core has booted
@@ -79,6 +83,13 @@ void setup1() {
   sleep(DEBUG_BOOT_DELAY);
 #endif
 
+  // This is here since the other core writes to flash
+  // See the documentation on flash writing
+  // This uses the overrided flash safety handler from flash.h and flash.cpp
+  flash_safe_execute_core_init();
+  // This prevents super edge case race conditions where this core is not running and flash is written
+  flash_ready = true;
+
   // Init the serial
   Serial.begin(115200);
   log_message("Serial inited");
@@ -94,9 +105,6 @@ void setup1() {
     // Create the log folders if they don't already exist
     sd.mkdir("Logs");
     sd.mkdir("Data");
-#ifdef CALIBRATION
-    sd.mkdir("Calib");
-#endif
 
     // Try to create the log files we just search for the first two files with an available name
     //  by incrementing the number in the name
@@ -108,13 +116,6 @@ void setup1() {
         continue;
       }
 
-#ifdef CALIBRATION
-      String calib_path = "Calib/calib_" + String(i) + ".bin";
-      if (sd.exists(calib_path)) {
-        continue;
-      }
-#endif
-
       log_message("File number " + String(i) + " found");
 
       // Open the files
@@ -124,10 +125,6 @@ void setup1() {
       // Init the csv header
       data_file.println("time,acc x,acc y, acc z,gyro x, gyro y,gyro z");
       data_file.flush();
-
-#ifdef CALIBRATION
-      calib_file = sd.open(calib_path, (oflag_t)(O_CREAT | O_WRITE | O_APPEND));
-#endif
 
       // We have created log files
       file_inited = true;
@@ -159,6 +156,7 @@ void handle_log_event(LogEvent event) {
   // Convert the log data into a human readable string
   String content = match(event.value,
     [](String str) { return String(str); },
+    [](Error err) { return String("ERROR: " + err.content); },
     [](ModeChange change) { return String(MODE_TO_NAME[change.old] + " -> " + MODE_TO_NAME[change.next]); }
   );
 
@@ -167,22 +165,26 @@ void handle_log_event(LogEvent event) {
   write_log("[time: " + String(event.timestamp) + "ms, core: " + String(event.core) + "] " + content);
 }
 
-void handle_calib(CalibData data) {
+void handle_calib(DataEvent data) {
   if (!sd_failure) {
-    std::tuple<char, size_t> content = match(data,
-      [](AccCalib data) { return std::make_tuple('A', sizeof(data)); },
-      [](GyroCalib data) { return std::make_tuple('G', sizeof(data)); }
+    std::tuple<char, size_t> content = match(data.value,
+      [](Acc data) { return std::make_tuple('A', sizeof(data)); },
+      [](Gyro data) { return std::make_tuple('G', sizeof(data)); },
+      [](Baro data) { return std::make_tuple('B', sizeof(data)); },
+      [](Servo data) { return std::make_tuple('S', sizeof(data)); },
+      [](Current data) { return std::make_tuple('C', sizeof(data)); }
     );
 
-    calib_file.write(std::get<0>(content));
-    calib_file.write(&data, std::get<1>(content));
-    calib_file.flush();
+    data_file.write(std::get<0>(content));
+    data_file.write(data.timestamp);
+    data_file.write(&data.value, std::get<1>(content));
+    data_file.flush();
   }
 }
 
 // Just empties the log queue
 void loop1() {
-  std::variant<LogEvent, CalibData> event;
+  std::variant<LogEvent, DataEvent> event;
 
   while (true) {
     events.getQ(event, true);
@@ -196,7 +198,7 @@ void loop1() {
     }
 
     // I don't know why the lambdas are needed
-    match(event, [](LogEvent event) { handle_log_event(event); }, [](CalibData event) { handle_calib(event); });
+    match(event, [](LogEvent event) { handle_log_event(event); }, [](DataEvent event) { handle_calib(event); });
   }
 }
 

@@ -1,9 +1,10 @@
 #include "state.h"
 
-#include "util.h"
-
-#include "logging.h"
 #include <cmath>
+
+#include "util.h"
+#include "flash.h"
+#include "logging.h"
 
 // NOTE: There is no FPU on the RP2040 so this code could be more of a performance bottleneck that it appears
 // NOTE: These operations use the eigen math library and could be manually optimized in some cases,
@@ -13,11 +14,6 @@
 // NOTE: We could calibrate the sensors in RestState, instead of pre calibrating them (this neither calibration
 //  version has been implmented yet)
 // NOTE: It is worth considering what parts of this could be fixed point
-
-// TODO: Test performance
-// TODO: It would make more sense to store the baro input and then wait until
-//  the imu reads data at a time past the baro read time and then apply the baro data
-//  that way it is always correclty applied at the right time
 
 void FlightState::push_baro(float pressure, float temperature) {
   // Estimate from pressure and temperature
@@ -39,7 +35,7 @@ void FlightState::push_baro(float pressure, float temperature) {
   cov = (Eigen::Matrix2f::Identity() - (gain * obser)) * cov;
 }
 
-void FlightState::push_acc(Eigen::Vector3f &&acc, bool is_high_g) {
+void FlightState::push_acc(Eigen::Vector3f &acc, bool is_high_g) {
   // We need the un gravity compenstated magnitude for detecting if beavs can be used
   raw_acc_mag_sq = acc.dot(acc);
 
@@ -71,13 +67,49 @@ void FlightState::push_acc(Eigen::Vector3f &&acc, bool is_high_g) {
   cov = (trans * cov * trans.transpose()) + (control * noise * control.transpose()) + trans_noise;
 }
 
-void FlightState::push_gyro(Eigen::Vector3f &&gyro) {
+void FlightState::push_gyro(Eigen::Vector3f &gyro) {
   // See https://stackoverflow.com/questions/23503151/how-to-update-quaternion-based-on-3d-gyro-data
   // I think this is based on the approximation sin(x) == x
   Eigen::Quaternionf w(0, gyro.x(), gyro.y(), gyro.z());
   // Written like (1.0f / x) to ensure gcc optmizes to a multiply
   rot.coeffs() += 0.5f * (1.0f / GYRO_RATE) * (rot * w).coeffs();
   rot.normalize();
+}
+
+void FlightState::load_flash(FlashState &&flash_state) {
+  state(0) = flash_state.h;
+  state(1) = flash_state.v;
+
+  cov(0, 0) = flash_state.h_cov;
+  // The matrix is symmetric
+  cov(1, 0) = flash_state.hv_cov;
+  cov(0, 1) = flash_state.hv_cov;
+  cov(1, 1) = flash_state.v_cov;
+
+  // Since one axis is arbitrary we can just pick a vector such that its cos(angle) from vertical is cosZenith
+  // This is based on LOCAL_UP (this init should be changed to be dependent on LOCAL_UP)
+  // NOTE: This depends on LOCAL_UP in state.h
+  // TODO: Check this math see LAUNCH_VEC
+  Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
+  Eigen::Vector3f flight_vec(0.0f, 1.0f - flash_state.cosZenith, flash_state.cosZenith);
+  rot = Eigen::Quaternionf::FromTwoVectors(flight_vec, up);
+}
+
+FlashState FlightState::get_flash() {
+  // See the done code for explaination of cosZenith
+  // We could optimize by storing this value and then using it in done
+  Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
+  Eigen::Vector3f rocket_up = rot * LOCAL_UP;
+  float cosZenith = up.dot(rocket_up);
+
+  return FlashState(
+    state(0),
+    state(1),
+    cov(0, 0),
+    cov(1, 0), // Since the covariance is symmetric we only need one
+    cov(1, 1),
+    cosZenith
+  );
 }
 
 float FlightState::get_servo() {
@@ -120,7 +152,7 @@ void RestState::push_buf(Measurement &&meas) {
   buf.push(meas);
 }
 
-void RestState::push_acc(Eigen::Vector3f &&acc, bool high_g) {
+void RestState::push_acc(Eigen::Vector3f &acc, bool high_g) {
   push_buf(Measurement{acc, high_g, true});
 
   // If have an acceleration greater than launch acc we mark it by increasing
@@ -135,7 +167,7 @@ void RestState::push_acc(Eigen::Vector3f &&acc, bool high_g) {
   }
 }
 
-void RestState::push_gyro(Eigen::Vector3f &&gyro) {
+void RestState::push_gyro(Eigen::Vector3f &gyro) {
   push_buf(Measurement{gyro, false, false});
 }
 
@@ -184,9 +216,9 @@ bool RestState::try_init_flying(FlightState &state) {
   while (!buf.isEmpty()) {
     Measurement meas = buf.shift();
     if (meas.is_acc) {
-      state.push_acc(std::move(meas.data), meas.is_high_g);
+      state.push_acc(meas.data, meas.is_high_g);
     } else {
-      state.push_gyro(std::move(meas.data));
+      state.push_gyro(meas.data);
     }
 
     // This kinda violates the design principles
@@ -207,7 +239,7 @@ bool RestState::try_init_flying_boot(FlightState &state) {
 
   state.rot = Eigen::Quaternionf::FromTwoVectors(RAIL_VEC, up);
   state.state = Eigen::Vector2f(UNK_START_HEIGHT, UNK_START_VEL);
-  
+
   state.cov(0, 0) = UNK_START_H_ERROR;
   state.cov(0, 1) = UNK_START_VH_CORR;
   state.cov(1, 0) = UNK_START_VH_CORR;

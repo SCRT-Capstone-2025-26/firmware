@@ -4,10 +4,17 @@ import argparse
 
 Acc = namedtuple('Acc', ('x', 'y', 'z'))
 Gyro = namedtuple('Gyro', ('x', 'y', 'z'))
+Baro = namedtuple('Baro', ('pressure', 'tempurate'))
+Servo = namedtuple('Servo', ('percent'))
+# The units here are not the standard SI units
+Servo = namedtuple('Servo', ('voltage', 'temp', 'current', 'power'))
 
 item_types = {
     b'A': ('<fff', Acc),
     b'G': ('<fff', Gyro),
+    b'B': ('<ff', Baro),
+    b'S': ('<f', Servo),
+    b'C': ('<HiiI', Servo),
 }
 
 # Can unpack_from be used?
