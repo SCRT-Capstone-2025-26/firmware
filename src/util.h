@@ -10,12 +10,6 @@
 typedef unsigned long Millis;
 typedef unsigned long Micros;
 
-enum BaroState {
-  IDLE,
-  READING_TEMP,
-  READING_PRES
-};
-
 // Booting = The board is initializing components in the setup function (which could be run on a power failure or watchdog reboot)
 // Unknown = Right after booting to determine if the board is flying right now or not
 // Unarmed = The board demos the servo and then idles
@@ -77,120 +71,16 @@ enum FailComp {
   IMU_ERR
 };
 
-// TODO: Relocate this constants
-
-#define BARO_ERR_LIM 10
-#define IMU_ERR_LIM  30
-
 #define LED_POSITIVE RGB(0, 1, 0)
 #define LED_NEGATIVE RGB(1, 0, 0)
 #define LED_DISABLE  RGB(0, 0, 0)
 #define LED_NEUTRAL  RGB(0, 0, 1)
 
-#define SERVO_CHARGE_MILLIS 2000
-#define UNKNOWN_WAIT        2000
-#define DEBUG_BOOT_DELAY    3000
+#define BARO_ERR_LIM 10
+#define IMU_ERR_LIM  30
 
 #define SECONDS_TO_MILLIS 1000.0f
 #define GYRO_TO_RADPS     (0.001f * DEG_TO_RAD)
-
-#define SERVO_FREQ  300.0f
-#define SERVO_MIN   0.0f
-#define SERVO_MAX   1.0f
-// TODO: Check this
-#define SERVO_DUTY_MIN 0.75f
-#define SERVO_DUTY_MAX 0.15f
-#define SERVO_FLUSH    0.0f
-
-// I don't know why these aren't provided as constants from the library
-// It basically uses a if statement chain on a bunch of floats to figure out
-//  the setting which is strange https://github.com/stm32duino/ISM6HG256X/blob/main/src/ISM6HG256XSensor.cpp#L2705
-#define GYRO_RATE 960.0f
-#define ACC_RATE  960.0f
-
-// 9.80665f is the ISO value of little g
-// The currently value is calibrated
-// TODO: Update these
-#define GRAVITY_ACC       9.782978212113562
-// This is low for testing
-// The amount of acc from normal gravity required to consider
-//  it a launch
-#define LAUNCH_ACC        0.3f
-// The number of samples that fit the launch criteria
-//  to actually transition to launch
-#define LAUNCH_SAMPLE_REQ 30
-// A big history can easily take up a lot of the kinda limited ram
-// The seconds of imu data to have in a rolling buffer so that after
-//  launch is detected the first few moments of launch
-// If this is big enough that it takes a while to compute
-//  the code will have to change
-// This must capture the whole launch so data used in the ROT_HIST_SAMPLES
-//  is not launch data
-#define LAUNCH_HIST_S     0.4f
-// We need to determine the rotation before launch from
-//  some accelerometer data so we put that in the circular buffer as well
-#define ROT_HIST_SAMPLES  30
-
-// This depends on how the lookup table is made
-// TODO: Determine value
-#define START_HEIGHT 0.0f
-
-// The errors the rocket starts with
-// The cross error is 0
-// TODO: Determine values
-#define START_H_ERROR 1.0f
-#define START_V_ERROR 1.0f
-
-// The acceleration were beavs can extend
-// TODO: Determine value
-#define BEAVS_EXT_ACC 1.0f
-
-// This is the values that the rocket sets the estimated values to if it is booted during flight
-// TODO: Determine values
-#define UNK_START_HEIGHT 0.0f
-#define UNK_START_VEL 0.0f
-
-// The errors the rocket starts with if it is booted during flight
-// TODO: Determine values
-#define UNK_START_H_ERROR 1.0f
-#define UNK_START_V_ERROR 1.0f
-#define UNK_START_VH_CORR 1.0f
-
-// The value comes from https://github.com/RobTillaart/MS5611
-// TODO: Determine value
-#define SEA_LEVEL_PRESURE (1013.15 * 1e2)
-
-// TODO: Determine value
-#define ACC_HIGH_G_SWITCH (3.5f * GRAVITY_ACC)
-
-// TODO: Tune the senstivities based on calibration
-
-// I don't know why the constants don't work
-// This is just guestimated
-#define GYRO_SENS (ISM6HG256X_GYRO_SENSITIVITY_FS_4000DPS * 0.5f)
-// I don't know why the constants don't work
-// This is just guestimated
-#define ACC_SENS (ISM6HG256X_ACC_SENSITIVITY_FS_4G * 3.95)
-// This is just guestimated
-#define ACC_HIGH_G_SENS (ISM6HG256X_ACC_SENSITIVITY_FS_64G * 0.55f)
-
-// TODO: Determine these
-// NOTE: Changing these requires recalibration
-#define GYRO_FS 4000
-#define ACC_FS 4
-#define ACC_HIGH_G_FS 64
-
-// Launch rail angle (4 degrees off straight up)
-// TODO: Check
-#define RAIL_ANGLE (4.0f * DEG_TO_RAD)
-
-const Eigen::Vector3f LOCAL_UP(0.0f, 0.0f, 1.0f);
-// This is based on LOCAL_UP (this init should be changed to be dependent on LOCAL_UP)
-const Eigen::Vector3f RAIL_VEC(0.0f, std::sin(RAIL_ANGLE), std::cos(RAIL_ANGLE));
-
-const Eigen::Vector3f ACC_BIAS(0.008095040980820646f, -0.07066856444586497f, -0.06873988143672187f);
-const Eigen::Vector3f ACC_HIGH_G_BIAS(0.0f, 0.0f, 0.0f);
-const Eigen::Vector3f GYRO_BIAS(0.0020154851083784846f, 0.0032312920667005307f, -0.002640418776621421f);
 
 #define ARM_ON  LOW
 #define ARM_OFF HIGH
@@ -203,14 +93,25 @@ const Eigen::Vector3f GYRO_BIAS(0.0020154851083784846f, 0.0032312920667005307f, 
 //  so we can have it be extra long
 #define WATCHDOG_MS_CLEAR_FLASH 200
 
-
 // The expected time beavs is useful in a flight
 #define USEFUL_FLIGHT_TIME_MS (20 * SECONDS_TO_MILLIS)
 #define FLASH_SAMPLE_RATE     (USEFUL_FLIGHT_TIME_MS / FLASH_BUF_ELEMS)
 
+#define DEBUG_BOOT_DELAY 3000
+
+extern BoardMode board_mode;
+extern Millis last_mode_change;
+
+extern uint32_t baro_errors;
+extern uint32_t imu_errors;
+
 // These functions are based on the arduino delay, but feed the watchdog
 void sleep(Millis target_time);
 bool sleep_to(Millis target_time);
+
+void push_mode(BoardMode mode);
+void note_error(String &&message, FailComp failure_comp);
+Millis millis_in_mode();
 
 #endif
 

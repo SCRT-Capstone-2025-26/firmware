@@ -17,8 +17,49 @@
 // NOTE: This code uses millis() extensively and assumes it will not overflow (it will overflow in >40 days and that is not intended usage)
 // TODO: Look into pressure drop when hitting around mach numbers
 
-BoardMode board_mode = BOOTING;
-Millis last_mode_change = 0;
+#define SERVO_CHARGE_MILLIS 2000
+#define UNKNOWN_WAIT        2000
+
+#define SERVO_FREQ  300.0f
+#define SERVO_MIN   0.0f
+#define SERVO_MAX   1.0f
+// TODO: Check this
+#define SERVO_DUTY_MIN 0.75f
+#define SERVO_DUTY_MAX 0.15f
+#define SERVO_FLUSH    0.0f
+
+// TODO: Determine these
+// NOTE: Changing these requires recalibration
+#define GYRO_FS 4000
+#define ACC_FS 4
+#define ACC_HIGH_G_FS 64
+
+// The value where the acc switch froms low g to high g
+// Currently ACC_FS * GRAVITY_ACC is roughly the max acc reading
+//  of the low so when 80% of that is reached it switches
+// TODO: Determine value
+#define ACC_HIGH_G_SWITCH (ACC_FS * GRAVITY_ACC * 0.8f)
+
+// TODO: Tune the senstivities based on calibration
+
+// I don't know why the constants don't work
+// This is just guestimated
+#define GYRO_SENS (ISM6HG256X_GYRO_SENSITIVITY_FS_4000DPS * 0.5f)
+// I don't know why the constants don't work
+// This is just guestimated
+#define ACC_SENS (ISM6HG256X_ACC_SENSITIVITY_FS_4G * 3.95)
+// This is just guestimated
+#define ACC_HIGH_G_SENS (ISM6HG256X_ACC_SENSITIVITY_FS_64G * 0.55f)
+
+enum BaroState {
+  IDLE,
+  READING_TEMP,
+  READING_PRES
+};
+
+const Eigen::Vector3f ACC_BIAS(0.008095040980820646f, -0.07066856444586497f, -0.06873988143672187f);
+const Eigen::Vector3f ACC_HIGH_G_BIAS(0.0f, 0.0f, 0.0f);
+const Eigen::Vector3f GYRO_BIAS(0.0020154851083784846f, 0.0032312920667005307f, -0.002640418776621421f);
 
 FlightState flight_state = FlightState();
 RestState rest_state = RestState();
@@ -27,13 +68,6 @@ bool servo_powered = false;
 
 Millis baro_read_time;
 BaroState baro_state = IDLE;
-
-// The pins aren't correctly assigned for hardware SPI on the board
-// I assume it is a mistake (?) so we have to use bit banging
-SoftwareSPI softSPI(SPI_SCK, SPI_MISO, SPI_MOSI);
-
-MS5611_SPI baro(BAROMETER_CS, &softSPI);
-ISM6HG256XSensor imu(&softSPI, IMU_CS);
 
 // The mode of the accelerometer
 // We stay in high g mode and only switch to low g after launch
@@ -44,10 +78,14 @@ bool acc_high_g = true;
 //  the order written, but there is only so much we can do)
 bool acc_fifo_switched = true;
 
-Millis next_flash_write = 0;
+Millis next_flash_write;
 
-uint32_t baro_errors = 0;
-uint32_t imu_errors = 0;
+// The pins aren't correctly assigned for hardware SPI on the board
+// I assume it is a mistake (?) so we have to use bit banging
+SoftwareSPI softSPI(SPI_SCK, SPI_MISO, SPI_MOSI);
+
+MS5611_SPI baro(BAROMETER_CS, &softSPI);
+ISM6HG256XSensor imu(&softSPI, IMU_CS);
 
 // The servo has an operating frequency of 50-300Hz
 RP2040_PWM servo(SERVO_1, (float)SERVO_FREQ, 0.0f);
@@ -98,50 +136,6 @@ bool try_power_servo() {
   digitalWrite(SERVO_POWER_ENABLE, HIGH);
   servo_powered = true;
   return true;
-}
-
-void push_mode(BoardMode mode) {
-  log_message(ModeChange{board_mode, mode});
-
-  leds[LED_STATUS] = MODE_TO_COLOR[mode];
-  led_show();
-
-  if (mode == FLYING) {
-    Millis next_flash_write = 0;
-  }
-
-  board_mode = mode;
-  last_mode_change = millis();
-}
-
-// Pushing LED_STATUS gets overwritten immediatly so is equivalent to a failure with no origin
-void note_error(String &&message, FailComp failure_comp) {
-  log_message(Error{message});
-
-  switch (failure_comp) {
-    case BARO_ERR:
-      baro_errors++;
-      leds[LED_BARO] = LED_NEGATIVE;
-      led_show();
-    case IMU_ERR:
-      imu_errors++;
-      leds[LED_IMU] = LED_NEGATIVE;
-      led_show();
-  }
-
-  if (baro_errors >= BARO_ERR_LIM || imu_errors >= IMU_ERR_LIM || failure_comp == FAIL_NOW_ERR) {
-    push_mode(FAILURE);
-  }
-}
-
-Millis millis_in_mode() {
-  // This should never happen
-  if (last_mode_change > millis()) {
-    note_error("Mode changed marked in future", DO_NOTHING_ERR);
-    return 0;
-  }
-
-  return millis() - last_mode_change;
 }
 
 // NOTE: Init values are temporary and will be determined by data later
@@ -361,9 +355,15 @@ void update_servo() {
     return;
   }
 
-  float servo_percent = SERVO_FLUSH;
+  float servo_percent = 0.0f;
   if (board_mode == FLYING) {
-    servo_percent = flight_state.get_servo();
+    // FlightState shouldn't output beavs more than 0.0f if it is dangerous,
+    //  but this provides fallback security in case
+    if (acc_high_g) {
+      servo_percent = 0.0f;
+    } else {
+      servo_percent = flight_state.get_servo();
+    }
   } else if (board_mode == UNARMED) {
     // Just a generic parabola (maxed with 0) to generate the full range of motion over a few seconds
     // It is 0 at 1500 and 4500 millis and peaks at 1 since it is 0 at 1500 millis that gives
