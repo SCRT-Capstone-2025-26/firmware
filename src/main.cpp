@@ -280,16 +280,9 @@ void update_mode() {
     case UNKNOWN:
       // If booted during flight we should know our before 
       if (rest_state.try_init_flying_boot(flight_state)) {
-        State state;
-        // TODO: Add noise here maybe
+        FlashState state;
         if (flash_reinit(&state)) {
-          flight_state.state(0) = state.h;
-          flight_state.state(1) = state.v;
-
-          flight_state.cov(0, 0) = state.h_cov;
-          flight_state.cov(1, 0) = state.hv_cov;
-          flight_state.cov(0, 1) = state.hv_cov;
-          flight_state.cov(1, 1) = state.v_cov;
+          flight_state.load_flash(std::move(state));
         }
 
         push_mode(FLYING);
@@ -650,13 +643,7 @@ void loop() {
   update_mode();
 
   if (millis_in_mode() >= next_flash_write) {
-    flash_push_state(State(
-      flight_state.state(0),
-      flight_state.state(1),
-      flight_state.cov(0, 0),
-      flight_state.cov(1, 1),
-      flight_state.cov(0, 1)
-    ));
+    flash_push_state(flight_state.get_flash());
 
     next_flash_write += FLASH_SAMPLE_RATE;
   }

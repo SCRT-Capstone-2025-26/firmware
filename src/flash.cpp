@@ -25,12 +25,12 @@ struct WriteArgs {
 };
 
 // See https://arduino-pico.readthedocs.io/en/latest/platformio.html#flash-size for this
-State *flash_buf = (State *)(FLASH_SIZE - FS_SIZE - 4096);
+FlashState *flash_buf = (FlashState *)(FLASH_SIZE - FS_SIZE - 4096);
 size_t flash_index = INVALID_FLASH_INDEX;
 
 // Binary searches the array for the last valid entry
 // TODO: Verify
-bool flash_reinit(State *state) {
+bool flash_reinit(FlashState *state) {
   size_t low = -1;
   size_t high = FLASH_BUF_ELEMS;
 
@@ -102,7 +102,7 @@ void _flash_write(void *_args) {
   flash_range_program((uint32_t)args.memory, args.page, args.size);
 }
 
-bool flash_push_state(State &&state) {
+bool flash_push_state(FlashState &&state) {
   if (flash_index == INVALID_FLASH_INDEX || flash_index >= FLASH_BUF_ELEMS) {
     return false;
   }
@@ -113,7 +113,7 @@ bool flash_push_state(State &&state) {
   }
 
   // This code assumes this is true
-  static_assert(FLASH_PAGE_SIZE >= sizeof(State), "State must fit in a flash page");
+  static_assert(FLASH_PAGE_SIZE >= sizeof(FlashState), "Flash state must fit in a flash page");
 
   WriteArgs args;
 
@@ -130,7 +130,7 @@ bool flash_push_state(State &&state) {
   size_t in_page_offset = (size_t)page_addr - (size_t)addr_to_write;
 
   // Check if we can fit everything in one page if not we use two pages
-  bool one_page = in_page_offset + sizeof(State) <= FLASH_PAGE_SIZE;
+  bool one_page = in_page_offset + sizeof(FlashState) <= FLASH_PAGE_SIZE;
   size_t write_size = one_page ? FLASH_PAGE_SIZE : (FLASH_PAGE_SIZE * 2);
 
   // Copy into ram to modify the flash only where we want to

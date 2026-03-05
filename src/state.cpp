@@ -1,9 +1,10 @@
 #include "state.h"
 
-#include "util.h"
-
-#include "logging.h"
 #include <cmath>
+
+#include "util.h"
+#include "flash.h"
+#include "logging.h"
 
 // NOTE: There is no FPU on the RP2040 so this code could be more of a performance bottleneck that it appears
 // NOTE: These operations use the eigen math library and could be manually optimized in some cases,
@@ -73,6 +74,42 @@ void FlightState::push_gyro(Eigen::Vector3f &&gyro) {
   // Written like (1.0f / x) to ensure gcc optmizes to a multiply
   rot.coeffs() += 0.5f * (1.0f / GYRO_RATE) * (rot * w).coeffs();
   rot.normalize();
+}
+
+void FlightState::load_flash(FlashState &&flash_state) {
+  state(0) = flash_state.h;
+  state(1) = flash_state.v;
+
+  cov(0, 0) = flash_state.h_cov;
+  // The matrix is symmetric
+  cov(1, 0) = flash_state.hv_cov;
+  cov(0, 1) = flash_state.hv_cov;
+  cov(1, 1) = flash_state.v_cov;
+
+  // Since one axis is arbitrary we can just pick a vector such that its cos(angle) from vertical is cosZenith
+  // This is based on LOCAL_UP (this init should be changed to be dependent on LOCAL_UP)
+  // NOTE: This depends on LOCAL_UP in state.h
+  // TODO: Check this math see LAUNCH_VEC
+  Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
+  Eigen::Vector3f flight_vec(0.0f, 1.0f - flash_state.cosZenith, flash_state.cosZenith);
+  rot = Eigen::Quaternionf::FromTwoVectors(flight_vec, up);
+}
+
+FlashState FlightState::get_flash() {
+  // See the done code for explaination of cosZenith
+  // We could optimize by storing this value and then using it in done
+  Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
+  Eigen::Vector3f rocket_up = rot * LOCAL_UP;
+  float cosZenith = up.dot(rocket_up);
+
+  return FlashState(
+    state(0),
+    state(1),
+    cov(0, 0),
+    cov(1, 0), // Since the covariance is symmetric we only need one
+    cov(1, 1),
+    cosZenith
+  );
 }
 
 float FlightState::get_servo() {
@@ -202,7 +239,7 @@ bool RestState::try_init_flying_boot(FlightState &state) {
 
   state.rot = Eigen::Quaternionf::FromTwoVectors(RAIL_VEC, up);
   state.state = Eigen::Vector2f(UNK_START_HEIGHT, UNK_START_VEL);
-  
+
   state.cov(0, 0) = UNK_START_H_ERROR;
   state.cov(0, 1) = UNK_START_VH_CORR;
   state.cov(1, 0) = UNK_START_VH_CORR;

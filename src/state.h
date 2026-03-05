@@ -2,6 +2,7 @@
 #define STATE_H
 
 #include "util.h"
+#include "flash.h"
 
 #include <ISM6HG256XSensor.h>
 #include <ArduinoEigen.h>
@@ -67,16 +68,27 @@
 #define START_H_ERROR 1.0f
 #define START_V_ERROR 1.0f
 
-// This is the values that the rocket sets the estimated values to if it is booted during flight
+// This is the values that the rocket sets the estimated values to if it is booted during flight and there is no flash history
 // TODO: Determine values
 #define UNK_START_HEIGHT 0.0f
 #define UNK_START_VEL 0.0f
 
-// The errors the rocket starts with if it is booted during flight
+// The errors the rocket starts with if it is booted during flight and there is no flash history
 // TODO: Determine values
 #define UNK_START_H_ERROR 1.0f
 #define UNK_START_V_ERROR 1.0f
 #define UNK_START_VH_CORR 1.0f
+
+// This is the values that the rocket sets the estimated values to if it is booted during flight
+// TODO: Determine values
+#define BOOT_INC_HEIGHT 0.0f
+#define BOOT_INC_VEL 0.0f
+
+// The errors the rocket starts with if it is booted during flight
+// TODO: Determine values
+#define BOOT_INC_H_ERROR 1.0f
+#define BOOT_INC_V_ERROR 1.0f
+#define BOOT_INC_VH_CORR 1.0f
 
 // The acceleration were beavs can extend
 // TODO: Determine value
@@ -86,8 +98,10 @@
 // TODO: Check
 #define RAIL_ANGLE (4.0f * DEG_TO_RAD)
 
+// NOTE: Changing this affects the following line and load_flash() in state.cpp
 const Eigen::Vector3f LOCAL_UP(0.0f, 0.0f, 1.0f);
 // This is based on LOCAL_UP (this init should be changed to be dependent on LOCAL_UP)
+// TODO: Check this math see load_flash
 const Eigen::Vector3f RAIL_VEC(0.0f, std::sin(RAIL_ANGLE), std::cos(RAIL_ANGLE));
 
 // I don't know why these aren't provided as constants from the library
@@ -123,6 +137,12 @@ struct FlightState {
   void push_baro(float pressure, float temperature);
   void push_acc(Eigen::Vector3f &&acc, bool high_g);
   void push_gyro(Eigen::Vector3f &&gyro);
+
+  // Converts the current state into a flash saveable struct
+  // Or converts from
+  // When it converts from it adds noise and time associated with a reboot
+  void load_flash(FlashState &&flash_state);
+  FlashState get_flash();
 
   float get_servo();
 
