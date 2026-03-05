@@ -70,6 +70,7 @@ void _clear_flash_buf(void *addr) {
 }
 
 bool clear_flash_buf() {
+  bool a = false;
   // Check the logging core is ready for a flash write
   if (!flash_ready) {
     return false;
@@ -90,6 +91,7 @@ bool clear_flash_buf() {
       }
     }
 
+      if (!a) { log_message(String((size_t)erase_mem)); a = true; }
     if (!cleared) {
       flash_safe_execute(_clear_flash_buf, erase_mem, 0 /*The timeout_ms is not implemented anyway*/);
     }
@@ -103,10 +105,10 @@ bool clear_flash_buf() {
 }
 
 void _flash_write(void *_args) {
-  WriteArgs args = *(WriteArgs *)_args;
+  WriteArgs *args = (WriteArgs *)_args;
 
   // It has no return so we just have to trust the function
-  flash_range_program((uint32_t)args.memory, args.page, args.size);
+  flash_range_program((uint32_t)args->memory - XIP_BASE, args->page, args->size);
 }
 
 bool flash_push_state(FlashState &&state) {
@@ -143,12 +145,13 @@ bool flash_push_state(FlashState &&state) {
   // Copy into ram to modify the flash only where we want to
   memcpy(page, page_addr, write_size);
   // Add to our new flash copy
-  memcpy(page + in_page_offset, &state, write_size);
+  memcpy(page + in_page_offset, &state, sizeof(FlashState));
 
   args.memory = page_addr;
   args.page   = page;
   args.size   = write_size;
-  return flash_safe_execute(_flash_write, page, 0 /*The timeout_ms is not implemented anyway*/) == PICO_OK;
+  WriteArgs *as = &args;
+  return flash_safe_execute(_flash_write, &args, 0 /*The timeout_ms is not implemented anyway*/) == PICO_OK;
 }
 
 // The overriden flash safety functions
