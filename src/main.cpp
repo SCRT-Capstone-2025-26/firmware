@@ -121,6 +121,8 @@ bool acc_fifo_switched = true;
 
 Millis next_flash_write;
 
+bool flash_write_failed = false;
+
 // The pins aren't correctly assigned for hardware SPI on the board
 // I assume it is a mistake (?) so we have to use bit banging
 SoftwareSPI softSPI(SPI_SCK, SPI_MISO, SPI_MOSI);
@@ -299,13 +301,6 @@ void setup() {
 // It could take some time to run (because it waits for the log core), but it shouldn't because the
 //  log core should boot fast
 void ground_boot() {
-  log_message("Clearing flash");
-
-  // We mess with the watchdog here since this could take a long time and we are on the ground and safe
-  watchdog_enable(WATCHDOG_MS_CLEAR_FLASH, 1);
-  clear_flash_buf();
-  watchdog_enable(WATCHDOG_MS, 1);
-
   log_message("Waiting on log core");
   // Wait for the other core to finish booting
   // This returns when the other core has booted with whether it has created log files
@@ -314,8 +309,15 @@ void ground_boot() {
   // Since the function returned the other core has booted and we can continue
   log_message("Log core booted");
   if (!sd_failure) { log_message("SD inited"); }
-  leds[LED_SD] = sd_failure ? LED_NEGATIVE : LED_POSITIVE;
+  leds[LED_SD] = sd_failure ? LED_POSITIVE : LED_NEGATIVE;
   led_show();
+
+  log_message("Clearing flash");
+  // We mess with the watchdog here since this could take a long time and we are on the ground and safe
+  watchdog_enable(WATCHDOG_MS_CLEAR_FLASH, 1);
+  // If flash isn't working we don't care
+  if (!clear_flash_buf()) { note_error("Flash clear Failed", DO_NOTHING_ERR); }
+  watchdog_enable(WATCHDOG_MS, 1);
 }
 
 // This is called every loop iteration and is responsible for managing the state transitions
@@ -327,15 +329,18 @@ void update_mode() {
     case UNKNOWN:
       // If booted during flight we should know our before 
       if (rest_state.try_init_flying_boot(flight_state)) {
+        push_mode(FLYING);
+
         FlashState state;
         if (flash_reinit(&state)) {
           flight_state.load_flash(std::move(state));
+        } else {
+          // If flash isn't working we don't care
+          note_error("Flash reinit failed", DO_NOTHING_ERR);
         }
-
-        push_mode(FLYING);
       } else if (millis_in_mode() >= UNKNOWN_WAIT) {
-        ground_boot();
         push_mode(UNARMED);
+        ground_boot();
       }
 
       break;
@@ -445,6 +450,7 @@ void update_servo() {
 }
 
 // TODO: Check self heating mentioned for similar product in MS5xxx library docs
+// TODO: Fix pres error after flight done
 void step_sample_baro() {
   switch (baro_state) {
     case IDLE:
@@ -774,7 +780,16 @@ void loop() {
   update_mode();
 
   if (board_mode == FLYING && millis_in_mode() >= next_flash_write) {
-    flash_push_state(flight_state.get_flash());
+    // We limit the amount of flash errors to one to stop spamming the log
+    if (!flash_push_state(flight_state.get_flash()) && !flash_write_failed) {
+      flash_write_failed = true;
+      // If flash fails we don't care
+      // This could be problematic because if there is a reboot and flash worked
+      //  for a bit then stopped we then have the problem that flash holds really old
+      //  data. I don't think this is work addressing because there is no known way to
+      //  write to flash to address it
+      note_error("Flash write failed", DO_NOTHING_ERR);
+    }
 
     next_flash_write += FLASH_SAMPLE_RATE;
   }

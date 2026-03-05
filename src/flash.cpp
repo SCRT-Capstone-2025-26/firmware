@@ -134,7 +134,7 @@ bool flash_push_state(FlashState &&state) {
   //  to be added
   void *page_addr = (void *)((size_t)addr_to_write & ~(FLASH_PAGE_SIZE - 1));
   // The offset of the state in the page
-  size_t in_page_offset = (size_t)page_addr - (size_t)addr_to_write;
+  size_t in_page_offset = (size_t)addr_to_write - (size_t)page_addr;
 
   // Check if we can fit everything in one page if not we use two pages
   bool one_page = in_page_offset + sizeof(FlashState) <= FLASH_PAGE_SIZE;
@@ -149,7 +149,11 @@ bool flash_push_state(FlashState &&state) {
   args.page   = page;
   args.size   = write_size;
   WriteArgs *as = &args;
-  return flash_safe_execute(_flash_write, &args, 0 /*The timeout_ms is not implemented anyway*/) == PICO_OK;
+  if (flash_safe_execute(_flash_write, &args, 0 /*The timeout_ms is not implemented anyway*/) == PICO_OK) {
+    flash_index++;
+  }
+
+  return true;
 }
 
 // The overriden flash safety functions
