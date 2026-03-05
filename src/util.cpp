@@ -51,10 +51,6 @@ void push_mode(BoardMode mode) {
   leds[LED_STATUS] = MODE_TO_COLOR[mode];
   led_show();
 
-  if (mode == FLYING) {
-    Millis next_flash_write = 0;
-  }
-
   board_mode = mode;
   last_mode_change = millis();
 }

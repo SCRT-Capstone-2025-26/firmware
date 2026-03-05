@@ -6,6 +6,7 @@
 #include <cmath>
 #include <hardware/watchdog.h>
 #include <cstdint>
+#include <cmath>
 
 #include "flash.h"
 #include "pins.h"
@@ -27,6 +28,16 @@
 #define SERVO_DUTY_MIN 0.75f
 #define SERVO_DUTY_MAX 0.15f
 #define SERVO_FLUSH    0.0f
+
+// The exponential decay for the servo during flight
+//  p = (SERVO_SMOOTH * p) + ((SERVO_SMOOTH - 1) * new_p)
+//  This formula assumes a sample every second the real formula does not
+// To prevent jittery servo
+// TODO: Determine
+#define SERVO_SMOOTH 0.3
+// Get servo smooth into more favourable units
+// This should be compile time const
+#define SERVO_SMOOTH_LN_MS std::log(SERVO_SMOOTH * 0.001f)
 
 // TODO: Determine these
 // NOTE: Changing these requires recalibration
@@ -76,6 +87,8 @@ FlightState flight_state = FlightState();
 RestState rest_state = RestState();
 
 bool servo_powered = false;
+float flight_servo_pecent;
+Millis flight_servo_last_ms;
 
 Millis baro_read_time;
 BaroState baro_state = IDLE;
@@ -287,6 +300,8 @@ void ground_boot() {
 // This is called every loop iteration and is responsible for managing the state transitions
 // Returns true if the mode changed
 void update_mode() {
+  Mode old_mode = board_mode;
+
   switch (board_mode) {
     case UNKNOWN:
       // If booted during flight we should know our before 
@@ -297,6 +312,7 @@ void update_mode() {
         }
 
         push_mode(FLYING);
+        pushed_flying = true;
       } else if (millis_in_mode() >= UNKNOWN_WAIT) {
         ground_boot();
         push_mode(UNARMED);
@@ -316,6 +332,8 @@ void update_mode() {
       //  and we are in flight
       if (rest_state.try_init_flying(flight_state)) {
         push_mode(FLYING);
+        pushed_flying = true;
+
       }
 
       if (digitalRead(ARM_SWITCH) == ARM_OFF) {
@@ -339,6 +357,13 @@ void update_mode() {
       note_error("Invalid mode", FAIL_NOW_ERR);
 
       break;
+  }
+
+  if (board_mode != old_mode && board_mode == FLYING) {
+    Millis next_flash_write = 0;
+
+    flight_servo_percent = 0.0f;
+    flight_servo_last_ms = 0;
   }
 
   watchdog_update();
@@ -368,6 +393,15 @@ void update_servo() {
     } else {
       servo_percent = flight_state.get_servo();
     }
+
+    // This interpolates between the two servo values based on the time
+    //  elapsed it is has a pretty heavy duty math, but we can afford it
+    Millis time = millis_in_mode();
+    Millis dt = time - flight_servo_last_ms;
+
+    float interp = std::exp(SERVO_SMOOTH_LN_MS * dt);
+    flight_servo_percent = (flight_servo_pecent * interp) + (servo_percent * (1.0f - interp));
+    servo_percent = flight_servo_pecent;
   } else if (board_mode == UNARMED) {
     // Just a generic parabola (maxed with 0) to generate the full range of motion over a few seconds
     // It is 0 at 1500 and 4500 millis and peaks at 1 since it is 0 at 1500 millis that gives
@@ -669,6 +703,11 @@ void do_failure() {
 #endif
 }
 
+// TODO: We could make the loop schedule in a way that does more barometer readings
+//  because we don't really need to run the loop a bunch between barometer readings
+//  so we could just run the loop then wait for the next barometer reading to be
+//  ready (this would mess with the flash write rate if not done well). The
+//  loop may be fast enough it doesn't matter
 void loop() {
   // If we have reached critical failure then we return early
   if (board_mode == FAILURE) {
