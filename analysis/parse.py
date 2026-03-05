@@ -4,10 +4,14 @@ import argparse
 
 Acc = namedtuple('Acc', ('x', 'y', 'z'))
 Gyro = namedtuple('Gyro', ('x', 'y', 'z'))
+Baro = namedtuple('Baro', ('pressure', 'tempurate'))
+Servo = namedtuple('Servo', ('percent'))
 
 item_types = {
     b'A': ('<fff', Acc),
     b'G': ('<fff', Gyro),
+    b'B': ('<ff', Baro),
+    b'S': ('<f', Servo),
 }
 
 # Can unpack_from be used?

@@ -17,32 +17,35 @@ struct Error {
 
 typedef std::variant<String, Error, ModeChange> Message;
 
-struct __attribute__((packed)) AccCalib {
+struct __attribute__((packed)) Acc {
   float x;
   float y;
   float z;
-
-  AccCalib(ISM6HG256X_Axes_t &acc) : x(acc.x), y(acc.y), z(acc.z) {
-  }
 };
 
-struct __attribute__((packed)) GyroCalib {
+struct __attribute__((packed)) Gyro {
   float x;
   float y;
   float z;
+};
 
-  GyroCalib(ISM6HG256X_Axes_t &gyro) : x(gyro.x), y(gyro.y), z(gyro.z) {
-  }
+struct __attribute__((packed)) Baro {
+  float pressure;
+  float temperature;
+};
+
+struct __attribute__((packed)) Servo {
+  float percent;
 };
 
 // The data should be packed as it it written directly to a buffer
-typedef std::variant<AccCalib, GyroCalib> CalibData;
+typedef std::variant<Acc, Gyro, Baro, Servo> Data;
 
 extern std::atomic<bool> flash_ready;
 
 void log_message(Message &&content);
 
-void write_calib(CalibData &&data);
+void write_data(Data &&data);
 
 bool wait_log_boot();
 

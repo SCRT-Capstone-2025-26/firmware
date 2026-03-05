@@ -32,8 +32,6 @@ std::atomic<bool> flash_ready(false);
 SdFs sd;
 FsFile log_file;
 FsFile data_file;
-// Calib is a binary file there is a reader script in analysis
-FsFile calib_file;
 
 // This is a class to put logs in the queue from the main core
 struct LogEvent {
@@ -42,9 +40,14 @@ struct LogEvent {
   Message value;
 };
 
+struct DataEvent {
+  Millis timestamp;
+  Data value;
+};
+
 // This is thread safe to store the events put in the queue
 // Should be big enough for boot events to build up before being cleared
-EventQueue<std::variant<LogEvent, CalibData>, 64> events;
+EventQueue<std::variant<LogEvent, DataEvent>, 64> events;
 // Is set to time if there is a log and events is full
 // If there are two fails only one is guarranteed to work
 std::atomic_bool event_write_fail;
@@ -58,8 +61,8 @@ void log_message(Message &&content) {
 }
 
 // This should be call by the main core
-void write_calib(CalibData &&data) {
-  if (!events.putQ(data)) {
+void write_data(Data &&data) {
+  if (!events.putQ(DataEvent{millis(), data})) {
     // If we fail to write then we mark that
     event_write_fail = true;
   }
@@ -102,9 +105,6 @@ void setup1() {
     // Create the log folders if they don't already exist
     sd.mkdir("Logs");
     sd.mkdir("Data");
-#ifdef CALIBRATION
-    sd.mkdir("Calib");
-#endif
 
     // Try to create the log files we just search for the first two files with an available name
     //  by incrementing the number in the name
@@ -116,13 +116,6 @@ void setup1() {
         continue;
       }
 
-#ifdef CALIBRATION
-      String calib_path = "Calib/calib_" + String(i) + ".bin";
-      if (sd.exists(calib_path)) {
-        continue;
-      }
-#endif
-
       log_message("File number " + String(i) + " found");
 
       // Open the files
@@ -132,10 +125,6 @@ void setup1() {
       // Init the csv header
       data_file.println("time,acc x,acc y, acc z,gyro x, gyro y,gyro z");
       data_file.flush();
-
-#ifdef CALIBRATION
-      calib_file = sd.open(calib_path, (oflag_t)(O_CREAT | O_WRITE | O_APPEND));
-#endif
 
       // We have created log files
       file_inited = true;
@@ -176,22 +165,25 @@ void handle_log_event(LogEvent event) {
   write_log("[time: " + String(event.timestamp) + "ms, core: " + String(event.core) + "] " + content);
 }
 
-void handle_calib(CalibData data) {
+void handle_calib(DataEvent data) {
   if (!sd_failure) {
-    std::tuple<char, size_t> content = match(data,
-      [](AccCalib data) { return std::make_tuple('A', sizeof(data)); },
-      [](GyroCalib data) { return std::make_tuple('G', sizeof(data)); }
+    std::tuple<char, size_t> content = match(data.value,
+      [](Acc data) { return std::make_tuple('A', sizeof(data)); },
+      [](Gyro data) { return std::make_tuple('G', sizeof(data)); },
+      [](Baro data) { return std::make_tuple('B', sizeof(data)); },
+      [](Servo data) { return std::make_tuple('S', sizeof(data)); }
     );
 
-    calib_file.write(std::get<0>(content));
-    calib_file.write(&data, std::get<1>(content));
-    calib_file.flush();
+    data_file.write(std::get<0>(content));
+    data_file.write(data.timestamp);
+    data_file.write(&data.value, std::get<1>(content));
+    data_file.flush();
   }
 }
 
 // Just empties the log queue
 void loop1() {
-  std::variant<LogEvent, CalibData> event;
+  std::variant<LogEvent, DataEvent> event;
 
   while (true) {
     events.getQ(event, true);
@@ -205,7 +197,7 @@ void loop1() {
     }
 
     // I don't know why the lambdas are needed
-    match(event, [](LogEvent event) { handle_log_event(event); }, [](CalibData event) { handle_calib(event); });
+    match(event, [](LogEvent event) { handle_log_event(event); }, [](DataEvent event) { handle_calib(event); });
   }
 }
 

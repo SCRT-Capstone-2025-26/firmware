@@ -35,7 +35,7 @@ void FlightState::push_baro(float pressure, float temperature) {
   cov = (Eigen::Matrix2f::Identity() - (gain * obser)) * cov;
 }
 
-void FlightState::push_acc(Eigen::Vector3f &&acc, bool is_high_g) {
+void FlightState::push_acc(Eigen::Vector3f &acc, bool is_high_g) {
   // We need the un gravity compenstated magnitude for detecting if beavs can be used
   raw_acc_mag_sq = acc.dot(acc);
 
@@ -67,7 +67,7 @@ void FlightState::push_acc(Eigen::Vector3f &&acc, bool is_high_g) {
   cov = (trans * cov * trans.transpose()) + (control * noise * control.transpose()) + trans_noise;
 }
 
-void FlightState::push_gyro(Eigen::Vector3f &&gyro) {
+void FlightState::push_gyro(Eigen::Vector3f &gyro) {
   // See https://stackoverflow.com/questions/23503151/how-to-update-quaternion-based-on-3d-gyro-data
   // I think this is based on the approximation sin(x) == x
   Eigen::Quaternionf w(0, gyro.x(), gyro.y(), gyro.z());
@@ -152,7 +152,7 @@ void RestState::push_buf(Measurement &&meas) {
   buf.push(meas);
 }
 
-void RestState::push_acc(Eigen::Vector3f &&acc, bool high_g) {
+void RestState::push_acc(Eigen::Vector3f &acc, bool high_g) {
   push_buf(Measurement{acc, high_g, true});
 
   // If have an acceleration greater than launch acc we mark it by increasing
@@ -167,7 +167,7 @@ void RestState::push_acc(Eigen::Vector3f &&acc, bool high_g) {
   }
 }
 
-void RestState::push_gyro(Eigen::Vector3f &&gyro) {
+void RestState::push_gyro(Eigen::Vector3f &gyro) {
   push_buf(Measurement{gyro, false, false});
 }
 
@@ -216,9 +216,9 @@ bool RestState::try_init_flying(FlightState &state) {
   while (!buf.isEmpty()) {
     Measurement meas = buf.shift();
     if (meas.is_acc) {
-      state.push_acc(std::move(meas.data), meas.is_high_g);
+      state.push_acc(meas.data, meas.is_high_g);
     } else {
-      state.push_gyro(std::move(meas.data));
+      state.push_gyro(meas.data);
     }
 
     // This kinda violates the design principles

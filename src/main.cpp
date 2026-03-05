@@ -372,6 +372,9 @@ void update_servo() {
   if (!servo.setPWM(SERVO_1, SERVO_FREQ, duty_percent * 100.0f)) {
     note_error("PWM config error", FAIL_NOW_ERR);
   }
+
+  write_data(Servo{servo_percent});
+
   watchdog_update();
 }
 
@@ -425,6 +428,7 @@ void step_sample_baro() {
 
         if (board_mode == FLYING) {
           flight_state.push_baro(baro.getPressure(), baro.getTemperature());
+          write_data(Baro{baro.getPressure(), baro.getTemperature()});
 
           // We now restart the sample (we could use a switch fallthrough here)
           // Set the baro_read_time to the sample delay
@@ -481,12 +485,13 @@ bool set_acc_mode(bool new_high_g) {
   return true;
 }
 
-// TODO: Add error handling
+// TODO: Maybe account for the accelerometer effects offset from the gyro
 // NOTE: We read raw data because not reading raw data reads the senstivity
 //  from the sensor making the FIFO reading twice as slow. We also don't use
 //  the standard senstivity instead using calibrated senstivities
 void sample_imu() {
   bool acc_axis_read = false;
+  bool gyro_axis_read = false;
 
   int16_t reading_data[3];
   // These are biased the bias is not removed
@@ -516,22 +521,21 @@ void sample_imu() {
 
     switch (tag) {
       case GYRO_TAG:
+        gyro_axis_read = true;
+
         gyro_axis.x() = reading_data[0] * GYRO_SENS;
         gyro_axis.y() = reading_data[1] * GYRO_SENS;
         gyro_axis.z() = reading_data[2] * GYRO_SENS;
+        gyro_axis -= GYRO_BIAS;
 
         if (board_mode == FLYING) {
-          flight_state.push_gyro(gyro_axis - GYRO_BIAS);
+          flight_state.push_gyro(gyro_axis);
         }
 
         break;
 
       case ACC_TAG:
         acc_axis_read = true;
-
-        acc_axis.x() = reading_data[0] * ACC_SENS;
-        acc_axis.y() = reading_data[1] * ACC_SENS;
-        acc_axis.z() = reading_data[2] * ACC_SENS;
 
         // If we are in high_g mode and the acc_fifo has started outputing high_g
         //  we ignore our data
@@ -545,10 +549,15 @@ void sample_imu() {
           acc_fifo_switched = true;
         }
 
+        acc_axis.x() = reading_data[0] * ACC_SENS;
+        acc_axis.y() = reading_data[1] * ACC_SENS;
+        acc_axis.z() = reading_data[2] * ACC_SENS;
+        acc_axis -= ACC_BIAS;
+
         if (board_mode == FLYING) {
-          flight_state.push_acc(acc_axis - ACC_BIAS, false);
+          flight_state.push_acc(acc_axis, false);
         } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-          rest_state.push_acc(acc_axis - ACC_BIAS, false);
+          rest_state.push_acc(acc_axis, false);
         }
 
         break;
@@ -558,11 +567,7 @@ void sample_imu() {
         //  at least a raw reading
         acc_axis_read = true;
 
-        acc_axis.x() = reading_data[0] * ACC_HIGH_G_SENS;
-        acc_axis.y() = reading_data[1] * ACC_HIGH_G_SENS;
-        acc_axis.z() = reading_data[2] * ACC_HIGH_G_SENS;
-
-        // See case 2
+        // See case ACC_TAG
         if (!acc_high_g) {
           if (acc_fifo_switched) {
             break;
@@ -571,10 +576,15 @@ void sample_imu() {
           acc_fifo_switched = true;
         }
 
+        acc_axis.x() = reading_data[0] * ACC_HIGH_G_SENS;
+        acc_axis.y() = reading_data[1] * ACC_HIGH_G_SENS;
+        acc_axis.z() = reading_data[2] * ACC_HIGH_G_SENS;
+        acc_axis -= ACC_HIGH_G_BIAS;
+
         if (board_mode == FLYING) {
-          flight_state.push_acc(acc_axis - ACC_HIGH_G_BIAS, true);
+          flight_state.push_acc(acc_axis , true);
         } else if (board_mode == UNKNOWN || board_mode == UNARMED || board_mode == ARMED) {
-          rest_state.push_acc(acc_axis - ACC_HIGH_G_BIAS, true);
+          rest_state.push_acc(acc_axis, true);
         }
 
         break;
@@ -587,8 +597,6 @@ void sample_imu() {
     // We only use low-g mode once in flight because when waiting for launch
     //  we want high g mode to get the early few readings of the launch
     if (board_mode == FLYING && acc_axis_read) {
-      // We don't calibrate the readings or anything since we are switching based
-      //  on if the senor becomes maxed out
       float sqr_mag = acc_axis.dot(acc_axis);
       if (!set_acc_mode(sqr_mag >= ACC_HIGH_G_SWITCH)) {
         note_error("Mode switch failed", IMU_ERR);
@@ -598,10 +606,8 @@ void sample_imu() {
     watchdog_update();
   }
 
-#ifdef CALIBRATION
-  write_calib(AccCalib(acc_axis));
-  write_calib(GyroCalib(gyro_axis));
-#endif
+  write_data(Acc{acc_axis.x(), acc_axis.y(), acc_axis.z()});
+  write_data(Gyro{gyro_axis.x(), gyro_axis.y(), gyro_axis.z()});
 }
 
 // This handles what the board should do when it has reached a critical failure
