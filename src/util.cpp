@@ -1,5 +1,6 @@
 #include "util.h"
 
+#include <cstdint>
 #include <hardware/watchdog.h>
 
 #include "logging.h"
@@ -9,8 +10,11 @@
 BoardMode board_mode = BOOTING;
 Millis last_mode_change = 0;
 
-uint32_t baro_errors = 0;
+// We count errors and the last time recieved
+// this allows us to get how many erros have happend in the last second
+Millis last_err_push = 0;
 uint32_t imu_errors = 0;
+uint32_t baro_errors = 0;
 
 // Not super precise
 // Feeds the watchdog while sleeping
@@ -59,6 +63,16 @@ void push_mode(BoardMode mode) {
 void note_error(String &&message, FailComp failure_comp) {
   log_message(Error{message});
 
+  // We remove errors one error per second
+  Millis curr_time = millis();
+  // DIV is cringe so we save a bit by using 1024
+  uint32_t seconds = (last_err_push / 1024) - (curr_time / 1024);
+  last_err_push = curr_time;
+
+  // Remove the number of seconds from the error count
+  if (baro_errors < seconds) { baro_errors = 0; } else { baro_errors -= seconds; }
+  if (imu_errors < seconds) { imu_errors = 0; } else { imu_errors -= seconds; }
+
   switch (failure_comp) {
     case BARO_ERR:
       baro_errors++;
@@ -70,7 +84,7 @@ void note_error(String &&message, FailComp failure_comp) {
       led_show();
   }
 
-  if (baro_errors >= BARO_ERR_LIM || imu_errors >= IMU_ERR_LIM || failure_comp == FAIL_NOW_ERR) {
+  if (baro_errors >= BARO_ERR_LIM_PER_SECOND || imu_errors >= IMU_ERR_LIM_PER_SECOND || failure_comp == FAIL_NOW_ERR) {
     push_mode(FAILURE);
   }
 }

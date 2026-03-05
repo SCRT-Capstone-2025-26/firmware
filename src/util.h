@@ -76,10 +76,10 @@ enum FailComp {
 #define LED_DISABLE  RGB(0, 0, 0)
 #define LED_NEUTRAL  RGB(0, 0, 1)
 
-#define BARO_ERR_LIM 10
-#define IMU_ERR_LIM  30
+// Actually 1024ms for optmization
+#define BARO_ERR_LIM_PER_SECOND 10
+#define IMU_ERR_LIM_PER_SECOND  30
 
-#define SECONDS_TO_MILLIS 1000.0f
 #define GYRO_TO_RADPS     (0.001f * DEG_TO_RAD)
 
 #define ARM_ON  LOW
