@@ -171,7 +171,8 @@ void handle_calib(DataEvent data) {
       [](Acc data) { return std::make_tuple('A', sizeof(data)); },
       [](Gyro data) { return std::make_tuple('G', sizeof(data)); },
       [](Baro data) { return std::make_tuple('B', sizeof(data)); },
-      [](Servo data) { return std::make_tuple('S', sizeof(data)); }
+      [](Servo data) { return std::make_tuple('S', sizeof(data)); },
+      [](Current data) { return std::make_tuple('C', sizeof(data)); }
     );
 
     data_file.write(std::get<0>(content));

@@ -32,5 +32,7 @@
 #define SERVO_6                16
 #define BATTERY_SENSE          26
 
+#define CURRENT_1_ID           0x40
+
 #endif
 

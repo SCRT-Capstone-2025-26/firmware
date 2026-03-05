@@ -14,6 +14,7 @@
 #include "logging.h"
 #include "led.h"
 #include "util.h"
+#include "ina745.h"
 
 // NOTE: This code uses millis() extensively and assumes it will not overflow (it will overflow in >40 days and that is not intended usage)
 // TODO: Look into pressure drop when hitting around mach numbers
@@ -92,6 +93,9 @@ Millis flight_servo_last_ms;
 
 Millis baro_read_time;
 BaroState baro_state = IDLE;
+
+INA745 current_sensor = INA745(CURRENT_1_ID, &Wire);
+bool current_sens_failed = false;
 
 // The mode of the accelerometer
 // We stay in high g mode and only switch to low g after launch
@@ -255,6 +259,12 @@ void setup() {
   if (imu_init) { log_message("IMU inited"); }
   leds[LED_IMU] = imu_init ? LED_POSITIVE : LED_NEGATIVE;
   led_show();
+
+  // We have no led and if it fails no big deal since it just logs
+  if (current_sensor.begin() == INA_SUCCESS) {
+    log_message("Current sensor inited");
+    current_sens_failed = true;
+  }
 
   if (baro_init && imu_init) {
     // The board is now ready
@@ -691,6 +701,21 @@ void sample_imu() {
   write_data(Gyro{gyro_axis.x(), gyro_axis.y(), gyro_axis.z()});
 }
 
+void sample_current() {
+  if (current_sens_failed) {
+    return;
+  }
+
+  current_sensor.read();
+
+  write_data(Current{
+    current_sensor.bus_millivolts(),
+    current_sensor.temperature_millicelsius(),
+    current_sensor.current_milliamps(),
+    current_sensor.power_microwatts()
+  });
+}
+
 // This handles what the board should do when it has reached a critical failure
 // There is no reason to not just reboot unless we are in debug in which case we can
 // disable the watchdog and sleep to show what happened
@@ -724,6 +749,9 @@ void loop() {
   //  to ensure it is in order roughly
   sample_imu();
   step_sample_baro();
+  // This is current only used for logging, but may be used to increase boot speed in UNKNOWN mode,
+  //  by sensing a safe time to activate the servo
+  sample_current();
 
   // Update the servo based on the state object
   update_servo();

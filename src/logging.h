@@ -38,8 +38,15 @@ struct __attribute__((packed)) Servo {
   float percent;
 };
 
+struct __attribute__((packed)) Current {
+  uint16_t voltage;
+  int16_t temp;
+  int16_t current;
+  uint32_t power;
+};
+
 // The data should be packed as it it written directly to a buffer
-typedef std::variant<Acc, Gyro, Baro, Servo> Data;
+typedef std::variant<Acc, Gyro, Baro, Servo, Current> Data;
 
 extern std::atomic<bool> flash_ready;
 
