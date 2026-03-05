@@ -399,6 +399,8 @@ void update_mode() {
       //  and we are in flight
       if (rest_state.try_init_flying(flight_state)) {
         push_mode(FLYING);
+        pushed_flying = true;
+
       }
 
       if (digitalRead(ARM_SWITCH) == ARM_OFF) {
