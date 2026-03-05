@@ -62,10 +62,10 @@ void log_message(Message &&content) {
 
 // This should be call by the main core
 void write_data(Data &&data) {
-  if (!events.putQ(DataEvent{millis(), data})) {
-    // If we fail to write then we mark that
-    event_write_fail = true;
-  }
+  // if (!events.putQ(DataEvent{millis(), data})) {
+  //   // If we fail to write then we mark that
+  //   event_write_fail = true;
+  // }
 }
 
 // This should be called from the other core to confirm that this core has booted

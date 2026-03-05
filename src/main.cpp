@@ -48,13 +48,13 @@
 
 // We treat very large or small values as errors to avoid hitting an extreme tail in the kalman filter
 // TODO: Detrmine these
-#define MAX_PRES 0
-#define MIN_PRES 0
+#define MAX_PRES 10000.0f
+#define MIN_PRES -10000.0f
 
-#define MAX_TEMP 0
-#define MIN_TEMP 0
+#define MAX_TEMP 10000.0f
+#define MIN_TEMP -10000.0f
 
-#define MAX_ACC_SQR_MAG 0
+#define MAX_ACC_SQR_MAG 10000.0f
 
 // The value where the acc switch froms low g to high g
 // Currently ACC_FS * GRAVITY_ACC is roughly the max acc reading
@@ -72,6 +72,19 @@
 #define ACC_SENS (ISM6HG256X_ACC_SENSITIVITY_FS_4G * 3.95)
 // This is just guestimated
 #define ACC_HIGH_G_SENS (ISM6HG256X_ACC_SENSITIVITY_FS_64G * 0.55f)
+
+#define ARM_ON  LOW
+#define ARM_OFF HIGH
+
+// Clearing flash is quite slow (the core does feed the watchdog while clearing)
+//  but the minimum sector clear can be like 100ms I think at worst case it 
+//  doesn't really matter since the flash is only cleared on the ground when booting
+//  so we can have it be extra long
+#define WATCHDOG_MS_CLEAR_FLASH 200
+
+// The expected time beavs is useful in a flight
+#define USEFUL_FLIGHT_TIME_MS 20 * 1000
+#define FLASH_SAMPLE_RATE     max(USEFUL_FLIGHT_TIME_MS / FLASH_BUF_ELEMS, 1)
 
 enum BaroState {
   IDLE,
@@ -171,9 +184,6 @@ void setup() {
   // Allow some time for the serial monitor to connect
   sleep(DEBUG_BOOT_DELAY);
 #endif
-
-  // The 1 means it plays nice with the debugger
-  watchdog_enable(WATCHDOG_MS, 1);
 
   // Initialize the pins
   // This initializes the servo power pins which if improperly initialized can cause
@@ -280,7 +290,8 @@ void setup() {
     note_error("Init failed", FAIL_NOW_ERR);
   }
 
-  watchdog_update();
+  // The 1 means it plays nice with the debugger
+  watchdog_enable(WATCHDOG_MS, 1);
 }
 
 // This is called when the board confirms that it has booted an is on the ground waiting to launch
@@ -758,7 +769,7 @@ void loop() {
   //  doesn't really matter
   update_mode();
 
-  if (millis_in_mode() >= next_flash_write) {
+  if (board_mode == FLYING && millis_in_mode() >= next_flash_write) {
     flash_push_state(flight_state.get_flash());
 
     next_flash_write += FLASH_SAMPLE_RATE;

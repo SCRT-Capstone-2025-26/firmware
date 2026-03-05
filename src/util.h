@@ -82,20 +82,7 @@ enum FailComp {
 
 #define GYRO_TO_RADPS     (0.001f * DEG_TO_RAD)
 
-#define ARM_ON  LOW
-#define ARM_OFF HIGH
-
-// Can't be lower due to barometer bug yet
-#define WATCHDOG_MS             20
-// Clearing flash is quite slow (the core does feed the watchdog while clearing)
-//  but the minimum sector clear can be like 100ms I think at worst case it 
-//  doesn't really matter since the flash is only cleared on the ground when booting
-//  so we can have it be extra long
-#define WATCHDOG_MS_CLEAR_FLASH 200
-
-// The expected time beavs is useful in a flight
-#define USEFUL_FLIGHT_TIME_MS 20 * 1000
-#define FLASH_SAMPLE_RATE     (USEFUL_FLIGHT_TIME_MS / FLASH_BUF_ELEMS)
+#define WATCHDOG_MS 10
 
 #define DEBUG_BOOT_DELAY 3000
 

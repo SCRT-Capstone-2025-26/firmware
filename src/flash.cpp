@@ -15,7 +15,14 @@
 
 // This allows the other core to do a bit of work while the flash is being cleared
 // We are not concerned about time sicne clearing is already slow
-#define CLEAR_SLEEP_MS     2
+#define CLEAR_SLEEP_MS 2
+
+// TODO: Check is it XIP_BASE
+#define BUF_ADDR (FLASH_SIZE - FS_SIZE - 4096 + XIP_BASE)
+
+static_assert(BUF_ADDR % FLASH_SECTOR_SIZE == 0, "Data buffer address must be divisible by FLASH_SECTOR_SIZE");
+// Technically this follows from the first condition
+static_assert(BUF_ADDR % FLASH_PAGE_SIZE == 0, "Data buffer address must be divisible by FLASH_PAGE_SIZE");
 
 struct WriteArgs {
   // In flash space (ie & - XIP_BASE)
@@ -25,7 +32,7 @@ struct WriteArgs {
 };
 
 // See https://arduino-pico.readthedocs.io/en/latest/platformio.html#flash-size for this
-FlashState *flash_buf = (FlashState *)(FLASH_SIZE - FS_SIZE - 4096);
+FlashState *flash_buf = (FlashState *)BUF_ADDR;
 size_t flash_index = INVALID_FLASH_INDEX;
 
 // Binary searches the array for the last valid entry
@@ -71,7 +78,7 @@ bool clear_flash_buf() {
   // Since BUF_MEM is a multiple of FLASH_SECTOR_SIZE and _clear_flash_buf clears a SECTOR
   //  every call this is a valid loop
   for (size_t i = 0; i < BUF_MEM; i += FLASH_SECTOR_SIZE) {
-    void *erase_mem = (void *)((size_t)&flash_buf + i);
+    void *erase_mem = (void *)((size_t)flash_buf + i);
 
     // We can check if the flash is already cleared and avoid wasting time
     bool cleared = true;
