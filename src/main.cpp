@@ -54,7 +54,8 @@
 #define MAX_TEMP 10000.0f
 #define MIN_TEMP -10000.0f
 
-#define MAX_ACC_SQR_MAG 10000.0f
+// TODO: Add gyro
+#define MAX_ACC_SQR_MAG 10000000.0f
 
 // The value where the acc switch froms low g to high g
 // Currently ACC_FS * GRAVITY_ACC is roughly the max acc reading
@@ -452,7 +453,7 @@ void step_sample_baro() {
         // We read the pressure first because we care about its accuracy less
         //  so reading it first creates less of a time delay issue
         // Set the baro_read_time to the sample delay
-        if (!baro.startReadRawTemp(&baro_read_time)) {
+        if (baro.startReadRawTemp(&baro_read_time) != MS5611_READ_OK) {
           note_error("Baro temp failure", BARO_ERR);
           // This is not critical we just reset the read
           baro_state = IDLE;
@@ -470,7 +471,7 @@ void step_sample_baro() {
       // If we have finished the read we switch to the pressure reading
       if (millis() >= baro_read_time) {
         // Set the baro_read_time to the sample delay
-        if (!baro.stepReadRawPres(&baro_read_time)) {
+        if (baro.stepReadRawPres(&baro_read_time) != MS5611_READ_OK) {
           note_error("Baro pres failure", BARO_ERR);
           // This is not critical we just reset the read
           baro_state = IDLE;
@@ -487,7 +488,7 @@ void step_sample_baro() {
       // If we have finished the read we switch either clear the sensor
       //  or send the reading to flight state and restart the read
       if (millis() >= baro_read_time) {
-        if (!baro.finishReading()) {
+        if (baro.finishReading() != MS5611_READ_OK) {
           note_error("Baro finish failure", BARO_ERR);
           // This is not critical we just reset the read
           baro_state = IDLE;
@@ -510,7 +511,7 @@ void step_sample_baro() {
 
           // We now restart the sample (we could use a switch fallthrough here)
           // Set the baro_read_time to the sample delay
-          if (!baro.startReadRawTemp(&baro_read_time)) {
+          if (!baro.startReadRawTemp(&baro_read_time) != MS5611_READ_OK) {
             note_error("Baro temp after finish failure", BARO_ERR);
             // This is not critical we just reset the read
             baro_state = IDLE;
