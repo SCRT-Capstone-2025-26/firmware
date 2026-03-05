@@ -70,7 +70,6 @@ void _clear_flash_buf(void *addr) {
 }
 
 bool clear_flash_buf() {
-  bool a = false;
   // Check the logging core is ready for a flash write
   if (!flash_ready) {
     return false;
@@ -91,7 +90,6 @@ bool clear_flash_buf() {
       }
     }
 
-      if (!a) { log_message(String((size_t)erase_mem)); a = true; }
     if (!cleared) {
       flash_safe_execute(_clear_flash_buf, erase_mem, 0 /*The timeout_ms is not implemented anyway*/);
     }

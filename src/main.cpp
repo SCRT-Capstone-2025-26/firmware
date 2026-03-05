@@ -370,6 +370,9 @@ void update_mode() {
     case DONE:
       break;
 
+    case FAILURE:
+      break;
+
     default:
       note_error("Invalid mode", FAIL_NOW_ERR);
 
