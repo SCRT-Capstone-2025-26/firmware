@@ -11,6 +11,14 @@
 #include "pins.h"
 #include "util.h"
 
+// How many ms between a log of the given type at most
+//  to prevent the buffer being flooded
+#define ACC_RATE_LIM  100
+#define GYRO_RATE_LIM 100
+#define BARO_RATE_LIM 100
+#define SERV_RATE_LIM 100
+#define CURR_RATE_LIM 100
+
 // This file handles the code that runs on the other core and handles the logging for Beavs
 
 // See https://stackoverflow.com/questions/64017982/c-equivalent-of-rust-enums
@@ -28,6 +36,12 @@ auto match(Val &&val, Ts... ts) {
 std::atomic_bool log_booted(false);
 std::atomic<bool> sd_failure;
 std::atomic<bool> flash_ready(false);
+
+Millis last_acc  = 0;
+Millis last_gyro = 0;
+Millis last_baro = 0;
+Millis last_serv = 0;
+Millis last_curr = 0;
 
 SdFs sd;
 FsFile log_file;
@@ -47,7 +61,7 @@ struct DataEvent {
 
 // This is thread safe to store the events put in the queue
 // Should be big enough for boot events to build up before being cleared
-EventQueue<std::variant<LogEvent, DataEvent>, 64> events;
+EventQueue<std::variant<LogEvent, DataEvent>, 128> events;
 // Is set to time if there is a log and events is full
 // If there are two fails only one is guarranteed to work
 std::atomic_bool event_write_fail;
@@ -62,10 +76,26 @@ void log_message(Message &&content) {
 
 // This should be call by the main core
 void write_data(Data &&data) {
-  // if (!events.putQ(DataEvent{millis(), data})) {
-  //   // If we fail to write then we mark that
-  //   event_write_fail = true;
-  // }
+  const auto [last_write, lim] = match(data,
+    [](Acc _) { return std::make_tuple(&last_acc, ACC_RATE_LIM); },
+    [](Gyro _) { return std::make_tuple(&last_gyro, GYRO_RATE_LIM); },
+    [](Baro _) { return std::make_tuple(&last_baro, BARO_RATE_LIM); },
+    [](Servo _) { return std::make_tuple(&last_serv, SERV_RATE_LIM); },
+    [](Current _) { return std::make_tuple(&last_curr, CURR_RATE_LIM); }
+  );
+
+  // We check this is not being rate limited before writing to the queue
+  Millis curr = millis();
+  if (*last_write + lim <= curr) {
+    *last_write = curr;
+  } else {
+    return;
+  }
+
+  if (!events.putQ(DataEvent{curr, data})) {
+    // If we fail to write then we mark that
+    event_write_fail = true;
+  }
 }
 
 // This should be called from the other core to confirm that this core has booted
@@ -77,7 +107,7 @@ bool wait_log_boot() {
   return sd_failure;
 }
 
-void setup1() {
+void setup() {
 #ifdef DEBUG
   // Allow some time for the serial to connect
   sleep(DEBUG_BOOT_DELAY);
@@ -110,7 +140,7 @@ void setup1() {
     //  by incrementing the number in the name
     for (int i = 0; i < INT_MAX; i++) {
       String log_path = "Logs/log_" + String(i) + ".txt";
-      String data_path = "Data/data_" + String(i) + ".csv";
+      String data_path = "Data/data_" + String(i) + ".bin";
       // Check that both are available continue the loop if not
       if (sd.exists(log_path) || sd.exists(data_path)) {
         continue;
@@ -121,10 +151,6 @@ void setup1() {
       // Open the files
       log_file = sd.open(log_path, (oflag_t)(O_CREAT | O_WRITE | O_APPEND));
       data_file = sd.open(data_path, (oflag_t)(O_CREAT | O_WRITE | O_APPEND));
-
-      // Init the csv header
-      data_file.println("time,acc x,acc y, acc z,gyro x, gyro y,gyro z");
-      data_file.flush();
 
       // We have created log files
       file_inited = true;
@@ -167,7 +193,7 @@ void handle_log_event(LogEvent event) {
 
 void handle_calib(DataEvent data) {
   if (!sd_failure) {
-    std::tuple<char, size_t> content = match(data.value,
+    const auto [id, size] = match(data.value,
       [](Acc data) { return std::make_tuple('A', sizeof(data)); },
       [](Gyro data) { return std::make_tuple('G', sizeof(data)); },
       [](Baro data) { return std::make_tuple('B', sizeof(data)); },
@@ -175,15 +201,15 @@ void handle_calib(DataEvent data) {
       [](Current data) { return std::make_tuple('C', sizeof(data)); }
     );
 
-    data_file.write(std::get<0>(content));
-    data_file.write(data.timestamp);
-    data_file.write(&data.value, std::get<1>(content));
+    data_file.write(id);
+    data_file.write(&data.timestamp, sizeof(data.timestamp));
+    data_file.write(&data.value, size);
     data_file.flush();
   }
 }
 
 // Just empties the log queue
-void loop1() {
+void loop() {
   std::variant<LogEvent, DataEvent> event;
 
   while (true) {

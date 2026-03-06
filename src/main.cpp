@@ -182,7 +182,7 @@ bool try_power_servo() {
 }
 
 // NOTE: Init values are temporary and will be determined by data later
-void setup() {
+void setup1() {
 #ifdef DEBUG
   // Allow some time for the serial monitor to connect
   sleep(DEBUG_BOOT_DELAY);
@@ -750,7 +750,7 @@ void do_failure() {
 //  so we could just run the loop then wait for the next barometer reading to be
 //  ready (this would mess with the flash write rate if not done well). The
 //  loop may be fast enough it doesn't matter
-void loop() {
+void loop1() {
   // If we have reached critical failure then we return early
   if (board_mode == FAILURE) {
     do_failure();
