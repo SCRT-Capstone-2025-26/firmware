@@ -309,7 +309,7 @@ void ground_boot() {
   // Since the function returned the other core has booted and we can continue
   log_message("Log core booted");
   if (!sd_failure) { log_message("SD inited"); }
-  leds[LED_SD] = sd_failure ? LED_POSITIVE : LED_NEGATIVE;
+  leds[LED_SD] = sd_failure ? LED_NEGATIVE : LED_POSITIVE;
   led_show();
 
   log_message("Clearing flash");
