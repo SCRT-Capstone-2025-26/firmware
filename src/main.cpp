@@ -273,8 +273,12 @@ void setup1() {
   led_show();
 
   // We have no led and if it fails no big deal since it just logs
-  if (current_sensor.begin() == INA_SUCCESS) {
-    log_message("Current sensor inited");
+  Wire.setSDA(SDA);
+  Wire.setSCL(SCL);
+  Wire.setClock(100000);
+  Wire.begin();
+  if (current_sensor.begin() != INA_SUCCESS) {
+    log_message("Current sensor init failed");
     current_sens_failed = true;
   }
 
