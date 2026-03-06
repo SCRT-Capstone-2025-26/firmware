@@ -110,6 +110,10 @@ void _flash_write(void *_args) {
 }
 
 bool flash_push_state(FlashState &&state) {
+#ifdef NO_FLASH
+  return true;
+#endif
+
   if (flash_index == INVALID_FLASH_INDEX || flash_index >= FLASH_BUF_ELEMS) {
     return false;
   }

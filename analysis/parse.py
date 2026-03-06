@@ -7,14 +7,14 @@ Gyro = namedtuple('Gyro', ('x', 'y', 'z'))
 Baro = namedtuple('Baro', ('pressure', 'tempurate'))
 Servo = namedtuple('Servo', ('percent'))
 # The units here are not the standard SI units
-Servo = namedtuple('Servo', ('voltage', 'temp', 'current', 'power'))
+Current = namedtuple('Current', ('voltage', 'temp', 'current', 'power'))
 
 item_types = {
-    b'A': ('<fff', Acc),
-    b'G': ('<fff', Gyro),
-    b'B': ('<ff', Baro),
-    b'S': ('<f', Servo),
-    b'C': ('<HiiI', Servo),
+    b'A': ('<Lfff', Acc),
+    b'G': ('<Lfff', Gyro),
+    b'B': ('<Lff', Baro),
+    b'S': ('<Lf', Servo),
+    b'C': ('<LHiiI', Current),
 }
 
 # Can unpack_from be used?
@@ -26,8 +26,9 @@ def read_item(file):
     packing, item_type = item_types[id]
 
     data = file.read(struct.calcsize(packing))
+    timestamp, *args = struct.unpack(packing, data)
 
-    return item_type(*struct.unpack(packing, data))
+    return timestamp, item_type(*args)
 
 
 def read_all(file):

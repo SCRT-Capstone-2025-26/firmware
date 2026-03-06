@@ -1,3 +1,5 @@
+#ifndef INA745_H
+#define INA745_H
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -79,3 +81,5 @@ public:
     int32_t current_milliamps();
     uint32_t power_microwatts();
 };
+
+#endif

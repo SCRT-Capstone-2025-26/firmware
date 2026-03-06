@@ -1,6 +1,3 @@
-#ifndef INA745_H
-#define INA745_H
-
 #include <ina745.h>
 
 INA745Result INA745::read_reg(uint8_t reg, uint8_t out[], int size) {
@@ -91,4 +88,3 @@ uint32_t INA745::power_microwatts() {
     return power * 240;
 }
 
-#endif
