@@ -15,7 +15,12 @@ struct Error {
   String content;
 };
 
-typedef std::variant<String, Error, ModeChange> Message;
+// Arduino doesn't have a simple 64 bit hex to string so it is a tiny bit complex ot generate the string
+struct BoardID {
+  uint64_t id;
+};
+
+typedef std::variant<String, Error, ModeChange, BoardID> Message;
 
 struct __attribute__((packed)) Acc {
   float x;
