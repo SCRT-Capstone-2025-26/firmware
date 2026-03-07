@@ -40,11 +40,16 @@
 // This should be compile time const
 #define SERVO_SMOOTH_LN_MS std::log(SERVO_SMOOTH * 0.001f)
 
+// NOTE: The FS and senstivities are linked, but because the library is strange we have to include
+//  them twice
 // TODO: Determine these
-// NOTE: Changing these requires recalibration
-#define GYRO_FS 4000
-#define ACC_FS 4
+#define GYRO_FS       4000
+#define ACC_FS        4
 #define ACC_HIGH_G_FS 64
+// TODO: Maybe tune the senstivities based on calibration
+#define GYRO_SENS       ISM6HG256X_GYRO_SENSITIVITY_FS_4000DPS
+#define ACC_SENS        ISM6HG256X_ACC_SENSITIVITY_FS_4G
+#define ACC_HIGH_G_SENS ISM6HG256X_ACC_SENSITIVITY_FS_64G
 
 // We treat very large or small values as errors to avoid hitting an extreme tail in the kalman filter
 // TODO: Detrmine these
@@ -62,12 +67,6 @@
 //  of the low so when 80% of that is reached it switches
 // TODO: Determine value
 #define ACC_HIGH_G_SWITCH (ACC_FS * GRAVITY_ACC * 0.8f)
-
-// TODO: Tune the senstivities based on calibration
-
-#define GYRO_SENS       _CALIB_GYRO_SENSITIVITY
-#define ACC_SENS        _CALIB_ACC_SENSITIVITY
-#define ACC_HIGH_G_SENS _CALIB_ACC_HIGH_G_SENSITIVITY
 
 #define ARM_ON  LOW
 #define ARM_OFF HIGH
@@ -256,9 +255,9 @@ void setup1() {
   imu_init &= imu.Set_HG_X_OutputDataRate(ACC_RATE) == ISM6HG256X_OK;
 
   // Set the sensor scales
-  imu_init &= imu.Set_X_FullScale(GYRO_FS) == ISM6HG256X_OK;
+  imu_init &= imu.Set_G_FullScale(GYRO_FS) == ISM6HG256X_OK;
   imu_init &= imu.Set_X_FullScale(ACC_FS) == ISM6HG256X_OK;
-  imu_init &= imu.Set_X_FullScale(ACC_HIGH_G_FS) == ISM6HG256X_OK;
+  imu_init &= imu.Set_HG_X_FullScale(ACC_HIGH_G_FS) == ISM6HG256X_OK;
 
   // Set the rate at which data is stored in the fifo (I believe)
   imu_init &= imu.FIFO_G_Set_BDR(GYRO_RATE) == ISM6HG256X_OK;
@@ -562,6 +561,14 @@ void step_sample_baro() {
 }
 
 bool set_acc_mode(bool new_high_g) {
+#ifdef CALIB_HG
+  new_high_g = true;
+#endif
+
+#ifdef CALIB_LG
+  new_high_g = true;
+#endif
+
   if (acc_high_g == new_high_g) {
     return true;
   }
