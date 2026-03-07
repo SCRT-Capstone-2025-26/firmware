@@ -1,0 +1,11 @@
+ID: 0x0000000000000000
+IS_DEFAULT: false
+
+# TODO: These should be defaults from the datasheet
+GYRO_SENSITIVITY: 1
+ACC_SENSITIVITY: 1
+ACC_HIGH_G_SENSITIVITY: 1
+
+ACC_BIAS: [0, 0, 0]
+ACC_HIGH_G_BIAS: [0, 0, 0]
+GYRO_BIAS: [0, 0, 0]

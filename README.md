@@ -10,8 +10,7 @@ target height of 10,000 ft.
 
 This firmware uses a platformio build system which can be installed [here](https://platformio.org/).
 
-This can be run on a BEAVS 2026 board through ``pio run -e release -t upload`` and in debug mode through ``pio run -e debug -t upload`` once you have platformio setup.
-
+This can be run on a BEAVS 2026 board through ``pio run -e release -t upload`` and in debug mode through ``pio run -e debug -t upload`` once you have platformio setup. This will run the board with no calibration set. To use a calibration file in the ``calibrations`` folder set your environment variable ``BOARD`` to the name of the calibration file (with ``.yaml`` excluded)
 
 ### Linux – D-Bus rules
 

@@ -65,14 +65,9 @@
 
 // TODO: Tune the senstivities based on calibration
 
-// I don't know why the constants don't work
-// This is just guestimated
-#define GYRO_SENS (ISM6HG256X_GYRO_SENSITIVITY_FS_4000DPS * 0.5f)
-// I don't know why the constants don't work
-// This is just guestimated
-#define ACC_SENS (ISM6HG256X_ACC_SENSITIVITY_FS_4G * 3.95)
-// This is just guestimated
-#define ACC_HIGH_G_SENS (ISM6HG256X_ACC_SENSITIVITY_FS_64G * 0.55f)
+#define GYRO_SENS       _CALIB_GYRO_SENSITIVITY
+#define ACC_SENS        _CALIB_ACC_SENSITIVITY
+#define ACC_HIGH_G_SENS _CALIB_ACC_HIGH_G_SENSITIVITY
 
 #define ARM_ON  LOW
 #define ARM_OFF HIGH
@@ -93,9 +88,9 @@ enum BaroState {
   READING_PRES
 };
 
-const Eigen::Vector3f ACC_BIAS(0.008095040980820646f, -0.07066856444586497f, -0.06873988143672187f);
-const Eigen::Vector3f ACC_HIGH_G_BIAS(0.0f, 0.0f, 0.0f);
-const Eigen::Vector3f GYRO_BIAS(0.0020154851083784846f, 0.0032312920667005307f, -0.002640418776621421f);
+const Eigen::Vector3f ACC_BIAS(_CALIB_ACC_BIAS_1, _CALIB_ACC_BIAS_2, _CALIB_ACC_BIAS_3);
+const Eigen::Vector3f ACC_HIGH_G_BIAS(_CALIB_ACC_HIGH_G_BIAS_1, _CALIB_ACC_HIGH_G_BIAS_2, _CALIB_ACC_HIGH_G_BIAS_3);
+const Eigen::Vector3f GYRO_BIAS(_CALIB_GYRO_BIAS_1, _CALIB_GYRO_BIAS_2, _CALIB_GYRO_BIAS_3);
 
 FlightState flight_state = FlightState();
 RestState rest_state = RestState();
@@ -200,6 +195,24 @@ void setup1() {
 
   // Push mode uses the leds
   push_mode(BOOTING);
+
+  // Check that the calibration is either the default
+#if _CALIB_IS_DEFAULT
+  // We log and emit a compiler warning that the board is not calibrated
+#warning NOTE: Using default calibration values (aka this board is uncalibrated)
+  log_message("NOTE: Using default calibration values (aka this board is uncalibrated)");
+#else
+  // Check whether the board has the correct calibration id
+  pico_unique_board_id_t id;
+  // NOTE: This loads from flash which can be modified (it is not a UUID from the board necesarily)
+  pico_get_unique_board_id(&id);
+  // Make sure that we can use a uint64 for this
+  static_assert(PICO_UNIQUE_BOARD_ID_SIZE_BYTES == 8, "Calib check size assumption invalid");
+  // Since bytes is 8 we can use a uint64_t compare
+  if (*(uint64_t *)id.id == _CALIB_ID) {
+    note_error("Invalid calibration", FAIL_NOW_ERR);
+  }
+#endif
 
   // The radio is not currently used (or installed) so we just set the led to mark that (neutral is blue which is visible)
   leds[LED_RADIO] = LED_NEUTRAL;
@@ -740,6 +753,7 @@ void sample_current() {
 // This handles what the board should do when it has reached a critical failure
 // There is no reason to not just reboot unless we are in debug in which case we can
 // disable the watchdog and sleep to show what happened
+// NOTE: The watchdog may not be running when this is called
 void do_failure() {
 #ifndef DEBUG
   watchdog_reboot(0, 0, 0);
