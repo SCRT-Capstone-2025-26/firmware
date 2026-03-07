@@ -196,21 +196,26 @@ void setup1() {
   // Push mode uses the leds
   push_mode(BOOTING);
 
+  // Check whether the board has the correct calibration id
+  pico_unique_board_id_t id;
+  // NOTE: This loads from flash which can be modified (it is not a UUID from the board necesarily)
+  pico_get_unique_board_id(&id);
+
+  // Make sure that we can use a uint64_t for this
+  static_assert(PICO_UNIQUE_BOARD_ID_SIZE_BYTES == 8, "Calib check size assumption invalid");
+  // Since bytes is 8 we can use a uint64_t compare
+  uint64_t id64 = *(uint64_t *)id.id;
+  log_message(BoardID{id64});
+
   // Check that the calibration is either the default
 #if _CALIB_IS_DEFAULT
   // We log and emit a compiler warning that the board is not calibrated
 #warning NOTE: Using default calibration values (aka this board is uncalibrated)
   log_message("NOTE: Using default calibration values (aka this board is uncalibrated)");
 #else
-  // Check whether the board has the correct calibration id
-  pico_unique_board_id_t id;
-  // NOTE: This loads from flash which can be modified (it is not a UUID from the board necesarily)
-  pico_get_unique_board_id(&id);
-  // Make sure that we can use a uint64 for this
-  static_assert(PICO_UNIQUE_BOARD_ID_SIZE_BYTES == 8, "Calib check size assumption invalid");
-  // Since bytes is 8 we can use a uint64_t compare
-  if (*(uint64_t *)id.id == _CALIB_ID) {
+  if (id64 != _CALIB_ID) {
     note_error("Invalid calibration", FAIL_NOW_ERR);
+    return;
   }
 #endif
 
