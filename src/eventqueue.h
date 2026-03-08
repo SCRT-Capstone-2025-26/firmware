@@ -27,6 +27,7 @@ SOFTWARE.
 // This has been modified to use a semaphore and allow blocking
 // Currently a fairly poor implementation, but it should work
 
+#include <cstdint>
 #include <inttypes.h>
 #include <pico/sem.h>
 
@@ -65,12 +66,14 @@ public:
     }
 
     // Insert item to queue.
-    bool putQ(const T &&e){
+    bool putQ(const T &&e, uint8_t usr_limit=UINT8_MAX){
+        uint8_t limit = min(usr_limit, _s);
+
         bool rc = false;
 
         sem_acquire_blocking(&_rw_sem);
 
-        if (_count < _s){
+        if (_count < limit){
             _count++;
             sem_release(&_count_sem);
 

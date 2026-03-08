@@ -20,6 +20,12 @@
 #define SERV_RATE_LIM 100
 #define CURR_RATE_LIM 100
 
+// The size of the event buffer
+#define EVENT_BUF_LIMIT 255
+// The amount of the event buffer filled where log messages stop being added
+//  this prevents log spam from stopping data being written in theory
+#define LOG_BUF_LIMIT   (EVENT_BUF_LIMIT / 2)
+
 // This file handles the code that runs on the other core and handles the logging for Beavs
 
 // See https://stackoverflow.com/questions/64017982/c-equivalent-of-rust-enums
@@ -62,16 +68,19 @@ struct DataEvent {
 
 // This is thread safe to store the events put in the queue
 // Should be big enough for boot events to build up before being cleared
-EventQueue<std::variant<LogEvent, DataEvent>, 128> events;
+EventQueue<std::variant<LogEvent, DataEvent>, EVENT_BUF_LIMIT> events;
 // Is set to time if there is a log and events is full
 // If there are two fails only one is guarranteed to work
-std::atomic_bool event_write_fail;
+std::atomic_bool log_write_fail;
+std::atomic_bool data_write_fail;
 
 // This can be called from either core and is the main logging functionality
 void log_message(Message &&content) {
-  if (!events.putQ(LogEvent{millis(), get_core_num(), content})) {
+  // We add a custom log limit to prevent the log events from flooding and blocking data events
+  //  since if there are a large number of logs they are probably repeatitive and not interesting
+  if (!events.putQ(LogEvent{millis(), get_core_num(), content}, LOG_BUF_LIMIT)) {
     // If we fail to write then we mark that
-    event_write_fail = true;
+    log_write_fail = true;
   }
 }
 
@@ -95,7 +104,7 @@ void write_data(Data &&data) {
 
   if (!events.putQ(DataEvent{curr, data})) {
     // If we fail to write then we mark that
-    event_write_fail = true;
+    data_write_fail = true;
   }
 }
 
@@ -225,11 +234,18 @@ void loop() {
     }
 
     // Check if there was an overflow in the event queue
-    if (event_write_fail) {
+    if (log_write_fail) {
       // Set this false first to catch more overflows
-      event_write_fail = false;
+      log_write_fail = false;
 
       write_log("Log buffer full.");
+    }
+
+    if (data_write_fail) {
+      // Set this false first to catch more overflows
+      data_write_fail = false;
+
+      write_log("Data buffer full.");
     }
 
     // I don't know why the lambdas are needed
