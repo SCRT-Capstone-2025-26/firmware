@@ -170,7 +170,6 @@ void setup() {
 void write_log(String content) {
   if (!sd_failure) {
     log_file.println(content);
-    log_file.flush();
   }
 
   Serial.println(content);
@@ -204,7 +203,6 @@ void handle_calib(DataEvent data) {
     data_file.write(id);
     data_file.write(&data.timestamp, sizeof(data.timestamp));
     data_file.write(&data.value, size);
-    data_file.flush();
   }
 }
 
@@ -212,8 +210,17 @@ void handle_calib(DataEvent data) {
 void loop() {
   std::variant<LogEvent, DataEvent> event;
 
+  bool events_empty = false;
   while (true) {
-    events.getQ(event, true);
+    // We try a non-blocking read first to see if the queue is empty
+    if (!events.getQ(event, false)) {
+      // If the read fails we know the queue is empty and start a blocking read
+      //  even though the queue may not be empty after the blocking read this is
+      //  good enough
+      events_empty = true;
+
+      events.getQ(event, true);
+    }
 
     // Check if there was an overflow in the event queue
     if (event_write_fail) {
@@ -225,6 +232,14 @@ void loop() {
 
     // I don't know why the lambdas are needed
     match(event, [](LogEvent event) { handle_log_event(event); }, [](DataEvent event) { handle_calib(event); });
+
+    // If the queue was just empty we probably have some extra time to flush the buffers
+    // The queue may not be empty by this point, but it will probably not have much so
+    //  we have some time to flush the buffers
+    if (events_empty) {
+      data_file.flush();
+      log_file.flush();
+    }
   }
 }
 
