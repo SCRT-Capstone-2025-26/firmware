@@ -14,11 +14,13 @@
 
 // How many ms between a log of the given type at most
 //  to prevent the buffer being flooded
-#define ACC_RATE_LIM  100
-#define GYRO_RATE_LIM 100
-#define BARO_RATE_LIM 100
-#define SERV_RATE_LIM 100
-#define CURR_RATE_LIM 100
+#define ACC_RATE_LIM  10
+#define GYRO_RATE_LIM 10
+#define BARO_RATE_LIM 10
+#define SERV_RATE_LIM 10
+#define CURR_RATE_LIM 10
+#define FILT_RATE_LIM 10
+#define ROT_RATE_LIM  10
 
 // The size of the event buffer
 #define EVENT_BUF_LIMIT 255
