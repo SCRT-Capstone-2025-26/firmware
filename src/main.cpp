@@ -765,7 +765,7 @@ void sample_current() {
 // This handles what the board should do when it has reached a critical failure
 // There is no reason to not just reboot unless we are in debug in which case we can
 // disable the watchdog and sleep to show what happened
-// NOTE: The watchdog may not be running when this is called
+// NOTE: This can be called before the watchdog is initialized
 void do_failure() {
 #ifndef DEBUG
   watchdog_reboot(0, 0, 0);
