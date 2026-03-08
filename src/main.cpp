@@ -121,7 +121,7 @@ bool acc_fifo_switched = true;
 
 Millis next_flash_write;
 
-bool flash_write_failed = false;
+bool prev_flash_write_failed = false;
 
 // The pins aren't correctly assigned for hardware SPI on the board
 // I assume it is a mistake (?) so we have to use bit banging
@@ -789,15 +789,23 @@ void loop1() {
   update_mode();
 
   if (board_mode == FLYING && millis_in_mode() >= next_flash_write) {
-    // We limit the amount of flash errors to one to stop spamming the log
-    if (!flash_push_state(flight_state.get_flash()) && !flash_write_failed) {
-      flash_write_failed = true;
-      // If flash fails we don't care
-      // This could be problematic because if there is a reboot and flash worked
-      //  for a bit then stopped we then have the problem that flash holds really old
-      //  data. I don't think this is work addressing because there is no known way to
-      //  write to flash to address it
-      note_error("Flash write failed", DO_NOTHING_ERR);
+    // We limit the amount of flash errors to the log by only logging changes in the state of the flash
+    //  this could still spam the log if it changes rapidly
+    if (!flash_push_state(flight_state.get_flash())) {
+      if (!prev_flash_write_failed) {
+        prev_flash_write_failed = true;
+        // If flash fails we don't care
+        // This could be problematic because if there is a reboot and flash worked
+        //  for a bit then stopped we then have the problem that flash holds really old
+        //  data. I don't think this is work addressing because there is no known way to
+        //  write to flash to address it
+        note_error("Flash write failed", DO_NOTHING_ERR);
+      }
+    } else {
+      if (prev_flash_write_failed) {
+        prev_flash_write_failed = false;
+        log_message("Flash write succeeded after failure");
+      }
     }
 
     next_flash_write += FLASH_SAMPLE_RATE;
