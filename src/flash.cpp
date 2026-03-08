@@ -18,7 +18,7 @@
 #define CLEAR_SLEEP_MS 2
 
 // TODO: Check is it XIP_BASE
-#define BUF_ADDR (FLASH_SIZE - FS_SIZE - 4096 + XIP_BASE)
+#define BUF_ADDR (FLASH_SIZE - FILESYS_SIZE - 4096 + XIP_BASE)
 
 static_assert(BUF_ADDR % FLASH_SECTOR_SIZE == 0, "Data buffer address must be divisible by FLASH_SECTOR_SIZE");
 // Technically this follows from the first condition
