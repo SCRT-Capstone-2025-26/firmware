@@ -566,7 +566,7 @@ bool set_acc_mode(bool new_high_g) {
 #endif
 
 #ifdef CALIB_LG
-  new_high_g = true;
+  new_high_g = false;
 #endif
 
   if (acc_high_g == new_high_g) {
