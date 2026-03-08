@@ -7,11 +7,11 @@ import os
 
 Import('env')
 
-default_name = 'default'
-board_name = os.getenv('BOARD', default_name)
+DEFAULT_NAME = 'default'
+board_name = os.getenv('BOARD', DEFAULT_NAME)
 
 config_file = os.path.join('calibrations', f'{board_name}.yaml')
-default_file = os.path.join('calibrations', f'{default_name}.yaml')
+default_file = os.path.join('calibrations', f'{DEFAULT_NAME}.yaml')
 
 # NOTE: This script is only designed to handle numbers, booleans, and arrays of numbers
 if os.path.exists(config_file):
@@ -23,9 +23,12 @@ if os.path.exists(config_file):
 
     # Check that the calibration file is the same as the default file with different data
     # NOTE: Doesn't check list's sub values since all arrays are assumed to be numbers
-    assert len(default_config.keys()) == len(config.keys())
+    assert default_config.keys() >= config.keys(), 'Extra keys in config'
+    assert default_config.keys() <= config.keys(), 'Missing keys in config'
     for key, value in config.items():
-        assert type(default_config[key]) is type(value)
+        default_type = type(default_config[key])
+        value_type = type(value)
+        assert default_type == value_type, f'Type mismatch for key {key}: expected {default_type}, got {value_type}'
 
     # Load the calibration into C++ defines
     defines = []
