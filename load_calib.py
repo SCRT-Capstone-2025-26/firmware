@@ -1,8 +1,4 @@
-try:
-    import yaml
-except ModuleNotFoundError:
-    print('Please install PyYAML or requirements.txt')
-    exit(1)
+import tomllib
 import pathlib
 import os
 
@@ -11,16 +7,18 @@ Import('env')
 DEFAULT_NAME = 'default'
 board_name = os.getenv('BOARD', DEFAULT_NAME)
 
-config_file = pathlib.Path('calibrations', f'{board_name}.yaml')
-default_file = pathlib.Path('calibrations', f'{DEFAULT_NAME}.yaml')
+config_file = pathlib.Path('calibrations', f'{board_name}.toml')
+default_file = pathlib.Path('calibrations', f'{DEFAULT_NAME}.toml')
 
 # NOTE: This script is only designed to handle numbers, booleans, and arrays of numbers
 if os.path.exists(config_file):
-    with open(config_file, 'r') as f:
-        config = yaml.safe_load(f)
+    with open(config_file, 'rb') as file:
+        config = tomllib.load(file)
 
-    with open(default_file, 'r') as f:
-        default_config = yaml.safe_load(f)
+    print(config)
+
+    with open(default_file, 'rb') as file:
+        default_config = tomllib.load(file)
 
     # Check that the calibration file is the same as the default file with different data
     # NOTE: Doesn't check list's sub values since all arrays are assumed to be numbers
