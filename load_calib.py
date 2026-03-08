@@ -3,6 +3,7 @@ try:
 except ModuleNotFoundError:
     print('Please install PyYAML or requirements.txt')
     exit(1)
+import pathlib
 import os
 
 Import('env')
@@ -10,8 +11,8 @@ Import('env')
 DEFAULT_NAME = 'default'
 board_name = os.getenv('BOARD', DEFAULT_NAME)
 
-config_file = os.path.join('calibrations', f'{board_name}.yaml')
-default_file = os.path.join('calibrations', f'{DEFAULT_NAME}.yaml')
+config_file = pathlib.Path('calibrations', f'{board_name}.yaml')
+default_file = pathlib.Path('calibrations', f'{DEFAULT_NAME}.yaml')
 
 # NOTE: This script is only designed to handle numbers, booleans, and arrays of numbers
 if os.path.exists(config_file):
