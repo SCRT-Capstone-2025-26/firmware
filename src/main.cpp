@@ -842,6 +842,14 @@ void loop1() {
     next_flash_write += FLASH_SAMPLE_RATE;
   }
 
+  if (board_mode == FLYING) {
+    write_data(RotState{flight_state.rot.x(), flight_state.rot.y() flight_state.rot.z() flight_state.rot.w()});
+    // Get flash does involve some calculation so this could be optimized
+    write_data(flight_state.get_flash());
+  } else {
+    write_data(RotState{rest_state.rot.x(), rest_state.rot.y() rest_state.rot.z() rest_state.rot.w()});
+  }
+
   watchdog_update();
 }
 

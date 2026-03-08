@@ -4,6 +4,7 @@
 #include <variant>
 #include <ISM6HG256XSensor.h>
 
+#include "flash.h"
 #include "util.h"
 
 struct ModeChange {
@@ -50,8 +51,17 @@ struct __attribute__((packed)) Current {
   uint32_t power;
 };
 
+typedef FlashState FilterState;
+
+struct __attribute__((packed)) RotState {
+  float x;
+  float y;
+  float z;
+  float w;
+};
+
 // The data should be packed as it it written directly to a buffer
-typedef std::variant<Acc, Gyro, Baro, Servo, Current> Data;
+typedef std::variant<Acc, Gyro, Baro, Servo, Current, FilterState, RotState> Data;
 
 extern std::atomic<bool> flash_ready;
 
