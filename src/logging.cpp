@@ -51,6 +51,8 @@ Millis last_gyro = 0;
 Millis last_baro = 0;
 Millis last_serv = 0;
 Millis last_curr = 0;
+Millis last_filt = 0;
+Millis last_rot = 0;
 
 SdFs sd;
 FsFile log_file;
@@ -93,7 +95,9 @@ void write_data(Data &&data) {
     [](Gyro _) { return std::make_tuple(&last_gyro, GYRO_RATE_LIM); },
     [](Baro _) { return std::make_tuple(&last_baro, BARO_RATE_LIM); },
     [](Servo _) { return std::make_tuple(&last_serv, SERV_RATE_LIM); },
-    [](Current _) { return std::make_tuple(&last_curr, CURR_RATE_LIM); }
+    [](Current _) { return std::make_tuple(&last_curr, CURR_RATE_LIM); },
+    [](FilterState _) { return std::make_tuple(&last_filt, FILT_RATE_LIM); },
+    [](RotState _) { return std::make_tuple(&last_rot, ROT_RATE_LIM); }
   );
 
   // We check this is not being rate limited before writing to the queue
@@ -209,7 +213,9 @@ void handle_calib(DataEvent data) {
       [](Gyro data) { return std::make_tuple('G', sizeof(data)); },
       [](Baro data) { return std::make_tuple('B', sizeof(data)); },
       [](Servo data) { return std::make_tuple('S', sizeof(data)); },
-      [](Current data) { return std::make_tuple('C', sizeof(data)); }
+      [](Current data) { return std::make_tuple('C', sizeof(data)); },
+      [](FilterState data) { return std::make_tuple('F', sizeof(data)); },
+      [](RotState data) { return std::make_tuple('R', sizeof(data)); }
     );
 
     data_file.write(id);
