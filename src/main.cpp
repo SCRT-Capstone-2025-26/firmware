@@ -539,6 +539,10 @@ void step_sample_baro() {
           float pres = baro.getPressure();
           float temp = baro.getTemperature();
 
+#ifdef TEST
+          get_baro(&pres, &temp);
+#endif
+
           if (pres < MIN_PRES || pres > MAX_PRES || temp < MIN_TEMP || temp > MAX_TEMP) {
             note_error("Suspicious baro reading", BARO_ERR);
             // This is not critical we just reset the read
@@ -546,8 +550,8 @@ void step_sample_baro() {
             break;
           }
 
-          flight_state.push_baro(baro.getPressure(), baro.getTemperature());
-          write_data(Baro{baro.getPressure(), baro.getTemperature()});
+          flight_state.push_baro(pres, temp);
+          write_data(Baro{pres, temp});
 
           // We now restart the sample (we could use a switch fallthrough here)
           if (baro.startReadRawTemp(&read_duration) != MS5611_READ_OK) {
@@ -661,6 +665,10 @@ void sample_imu() {
         gyro_axis.z() = reading_data[2] * GYRO_SENS;
         gyro_axis -= GYRO_BIAS;
 
+#ifdef TEST
+        get_gyro(&gyro_axis);
+#endif
+
         if (board_mode == FLYING) {
           flight_state.push_gyro(gyro_axis);
         }
@@ -686,6 +694,10 @@ void sample_imu() {
         acc_axis.y() = reading_data[1] * ACC_SENS;
         acc_axis.z() = reading_data[2] * ACC_SENS;
         acc_axis -= ACC_BIAS;
+
+#ifdef TEST
+        get_acc(&acc_axis);
+#endif
 
         sqr_mag = acc_axis.dot(acc_axis);
         if (sqr_mag > MAX_ACC_SQR_MAG) {
@@ -722,6 +734,10 @@ void sample_imu() {
         acc_axis.y() = reading_data[1] * ACC_HIGH_G_SENS;
         acc_axis.z() = reading_data[2] * ACC_HIGH_G_SENS;
         acc_axis -= ACC_HIGH_G_BIAS;
+
+#ifdef TEST
+        get_hg_acc(&acc_axis);
+#endif
 
         sqr_mag = acc_axis.dot(acc_axis);
         if (sqr_mag > MAX_ACC_SQR_MAG) {
@@ -857,5 +873,11 @@ void loop1() {
   }
 
   watchdog_update();
+
+#ifdef TEST
+  if (get_reboot()) {
+    watchdog_reboot(0, 0, 0);
+  }
+#endif
 }
 
