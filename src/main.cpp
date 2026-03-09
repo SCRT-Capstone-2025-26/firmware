@@ -15,6 +15,9 @@
 #include "led.h"
 #include "util.h"
 #include "ina745.h"
+#ifdef TEST
+#include "test.h"
+#endif
 
 // NOTE: This code uses millis() extensively and assumes it will not overflow (it will overflow in >40 days and that is not intended usage)
 // TODO: Look into pressure drop when hitting around mach numbers
@@ -223,6 +226,11 @@ void setup1() {
   // Whether or not the watchdog has been triggered
   leds[LED_WATCHDOG] = watchdog_caused_reboot() ? LED_NEGATIVE : LED_POSITIVE;
   led_show();
+
+#ifdef TEST
+  #warning Board is in TEST mode
+  log_message("Board is in TEST mode")
+#endif
 
   // Initialize the LED the rp2040 has two SPIs and we init the first one to be able to communicate to the sensors
   softSPI.begin();
