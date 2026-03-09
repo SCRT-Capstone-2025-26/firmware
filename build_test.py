@@ -4,6 +4,16 @@ import pathlib
 
 Import('env')
 
+test_id = os.getenv('TEST_ID', None)
+assert test_id is not None, 'No test ID not provided'
+# To make sure that this won't cause escaping problems
+assert test_id.isdigit(), 'Test ID contains no digit characters'
+
+# Pio doesn't seem to properly escape the c++ defines so we have to escape the double quotes
+env.Append(CPPDEFINES=[
+  ('TEST_ID', f'\\"{test_id}\\"')
+])
+
 test_path = os.getenv('TEST_FILE', None)
 assert test_path is not None, 'No test path provided'
 
