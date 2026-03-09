@@ -43,7 +43,7 @@ void get_baro(float *pressure, float *temperature) {
 }
 
 bool get_reboot() {
-  return micros() >= reboot_time;
+  return micros() >= max_steps * micros_per_step;
 }
 #endif
 

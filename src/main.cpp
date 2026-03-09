@@ -229,7 +229,7 @@ void setup1() {
 
 #ifdef TEST
   #warning Board is in TEST mode
-  log_message("Board is in TEST mode")
+  log_message("Board is in TEST mode");
 #endif
 
   // Initialize the LED the rp2040 has two SPIs and we init the first one to be able to communicate to the sensors
