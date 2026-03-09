@@ -1,3 +1,4 @@
+#ifdef TEST
 #include "test.h"
 
 #include "test_data.h"
@@ -44,4 +45,5 @@ void get_baro(float *pressure, float *temperature) {
 bool get_reboot() {
   return micros() >= reboot_time;
 }
+#endif
 
