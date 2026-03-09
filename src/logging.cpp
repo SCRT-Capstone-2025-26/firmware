@@ -14,13 +14,13 @@
 
 // How many ms between a log of the given type at most
 //  to prevent the buffer being flooded
-#define ACC_RATE_LIM  10
-#define GYRO_RATE_LIM 10
-#define BARO_RATE_LIM 10
-#define SERV_RATE_LIM 10
-#define CURR_RATE_LIM 10
-#define FILT_RATE_LIM 10
-#define ROT_RATE_LIM  10
+#define ACC_RATE_LIM  50
+#define GYRO_RATE_LIM 50
+#define BARO_RATE_LIM 50
+#define SERV_RATE_LIM 50
+#define CURR_RATE_LIM 50
+#define FILT_RATE_LIM 50
+#define ROT_RATE_LIM  50
 
 // The size of the event buffer
 #define EVENT_BUF_LIMIT 255
@@ -155,8 +155,14 @@ void setup() {
     // Try to create the log files we just search for the first two files with an available name
     //  by incrementing the number in the name
     for (int i = 0; i < INT_MAX; i++) {
+#ifdef TEST
+      String log_path = "Logs/log_test_" TEST_ID "_" + String(i) + ".txt";
+      String data_path = "Data/data_test_" TEST_ID "_" + String(i) + ".bin";
+#else
       String log_path = "Logs/log_" + String(i) + ".txt";
       String data_path = "Data/data_" + String(i) + ".bin";
+#endif
+
       // Check that both are available continue the loop if not
       if (sd.exists(log_path) || sd.exists(data_path)) {
         continue;
