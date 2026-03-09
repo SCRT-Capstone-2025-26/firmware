@@ -540,6 +540,7 @@ void step_sample_baro() {
           float temp = baro.getTemperature();
 
 #ifdef TEST
+          // The temperature will be slightly off using this since they are actually sampled at different times
           get_baro(&pres, &temp);
 #endif
 
@@ -644,6 +645,16 @@ void sample_imu() {
     return;
   }
 
+#ifdef TEST
+  // This assumes that both sensors are sampled at the same rate and that only 2 sensors
+  //  are sampling at once. The second can be false for a bit while the sensors are switching
+  static_assert(GYRO_RATE == ACC_RATE);
+  // 1000.0f * 1000.0f / ACC_RATE microseconds per sample from one sensor so half that sense two sensors
+  //  are sampling at once
+  float micros_per_sample = 0.5f * 1000.0f * 1000.0f / ACC_RATE;
+  Micros sample_time = micros();
+#endif
+
   uint8_t tag;
   for (uint16_t i = 0; i < samples; i++) {
     // We could try recovering the read on errors, but I think it is best to just leave the loop
@@ -666,7 +677,7 @@ void sample_imu() {
         gyro_axis -= GYRO_BIAS;
 
 #ifdef TEST
-        get_gyro(&gyro_axis);
+        get_gyro(&gyro_axis, sample_time + (Micros)((samples - i + 1) * sample_time));
 #endif
 
         if (board_mode == FLYING) {
@@ -696,7 +707,7 @@ void sample_imu() {
         acc_axis -= ACC_BIAS;
 
 #ifdef TEST
-        get_acc(&acc_axis);
+        get_acc(&acc_axis, sample_time + (Micros)((samples - i + 1) * sample_time));
 #endif
 
         sqr_mag = acc_axis.dot(acc_axis);
@@ -736,7 +747,7 @@ void sample_imu() {
         acc_axis -= ACC_HIGH_G_BIAS;
 
 #ifdef TEST
-        get_hg_acc(&acc_axis);
+        get_hg_acc(&acc_axis, sample_time + (Micros)((samples - i + 1) * sample_time));
 #endif
 
         sqr_mag = acc_axis.dot(acc_axis);
