@@ -56,5 +56,9 @@ class LogChecker():
             if not expectated:
                 return False, f'No matches for {log}'
 
+        for expectation in self.expected:
+            if expectation not in seen:
+                return False, f'Expected {expectation}, but not do not find a match'
+
         return True, ''
 

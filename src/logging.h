@@ -51,7 +51,14 @@ struct __attribute__((packed)) Current {
   uint32_t power;
 };
 
-typedef FlashState FilterState;
+struct __attribute__((packed)) FilterState {
+  float h;
+  float v;
+  // We save a spot on the covariance matrix because it is symmetric
+  float h_cov;
+  float v_cov;
+  float hv_cov;
+};
 
 struct __attribute__((packed)) RotState {
   float x;
