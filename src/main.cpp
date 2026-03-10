@@ -206,11 +206,21 @@ void setup1() {
 
   // The radio is not currently used (or installed) so we just set the led to mark that (neutral is blue which is visible)
   leds[LED_RADIO] = LED_NEUTRAL;
+
   // Whether or not the watchdog has been triggered
-  leds[LED_WATCHDOG] = watchdog_caused_reboot() ? LED_NEGATIVE : LED_POSITIVE;
+  // watchdog_caused_reboot is actually any reboot
+  bool reboot = watchdog_caused_reboot();
+  leds[LED_WATCHDOG] = reboot ? LED_NEGATIVE : LED_POSITIVE;
   led_show();
 
 #ifdef TEST
+  // We only want to run tests if the board has been rebooted to stop running
+  //  test immediatly when the board is plugged in to reflash
+  if (!reboot) {
+    push_mode(FAILURE);
+    return;
+  }
+
   #warning Board is in TEST mode
   log_message("Board is in TEST mode");
 #endif
