@@ -75,8 +75,8 @@ struct DataEvent {
 EventQueue<std::variant<LogEvent, DataEvent>, EVENT_BUF_LIMIT> events;
 // Is set to time if there is a log and events is full
 // If there are two fails only one is guarranteed to work
-std::atomic_bool log_write_fail;
-std::atomic_bool data_write_fail;
+std::atomic_bool log_write_fail = false;
+std::atomic_bool data_write_fail = false;
 
 // This can be called from either core and is the main logging functionality
 void log_message(Message &&content) {

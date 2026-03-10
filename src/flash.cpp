@@ -155,9 +155,10 @@ bool flash_push_state(FlashState &&state) {
   WriteArgs *as = &args;
   if (flash_safe_execute(_flash_write, &args, 0 /*The timeout_ms is not implemented anyway*/) == PICO_OK) {
     flash_index++;
+    return true;
+  } else {
+    return false;
   }
-
-  return true;
 }
 
 // The overriden flash safety functions
