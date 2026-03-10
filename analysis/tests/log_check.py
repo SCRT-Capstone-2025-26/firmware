@@ -54,7 +54,7 @@ class LogChecker():
                             return False, f'{parent} not before {expectation}'
 
             if not expectated:
-                return False, f'No matches for f{log}'
+                return False, f'No matches for {log}'
 
         return True, ''
 
