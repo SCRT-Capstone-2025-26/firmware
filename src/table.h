@@ -16,17 +16,10 @@
 //  just interpolates between the two height values and for each of those
 //  interpolates the two closest velocity values.
 
+// ROW_WEIGHTS is (height, vel) so row major
+
 // NOTE: If height or velocity is outside the table the code extrapolates linearly from the table edges
 // NOTE: This means it can return an value and should be clamped after indexing
-
-const extern float TABLE[];
-const extern float ROW_WEIGHTS[];
-
-const extern size_t TABLE_SIZE;
-const extern size_t ROW_SIZE;
-
-const extern float HEIGHT_STEP;
-const extern float HEIGHT_START;
 
 float index_table(float height, float velocity);
 

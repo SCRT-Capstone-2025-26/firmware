@@ -1,4 +1,6 @@
 #include "table.h"
+#include "table_data.h"
+
 #include <cstddef>
 #include <sys/types.h>
 
