@@ -231,15 +231,14 @@ void setup1() {
   led_show();
 
 #ifdef TEST
+  #warning Board is in TEST mode
+  log_message("Board is in TEST mode");
+
   // We only want to run tests if the board has been rebooted to stop running
   //  test immediatly when the board is plugged in to reflash
   if (!reboot) {
-    push_mode(FAILURE);
-    return;
+    while (true) { sleep(1000); }
   }
-
-  #warning Board is in TEST mode
-  log_message("Board is in TEST mode");
 #endif
 
   // Initialize the LED the rp2040 has two SPIs and we init the first one to be able to communicate to the sensors
@@ -875,7 +874,7 @@ void loop1() {
         //  for a bit then stopped we then have the problem that flash holds really old
         //  data. I don't think this is work addressing because there is no known way to
         //  write to flash to address it
-        note_error("Flash write failed", DO_NOTHING_ERR);
+        note_error(String("Flash write failed (flash could be full)"), DO_NOTHING_ERR);
       }
     } else {
       if (prev_flash_write_failed) {
