@@ -3,6 +3,7 @@ import importlib.util
 import argparse
 import pathlib
 import parse
+import tqdm
 
 parser = argparse.ArgumentParser()
 parser.add_argument('test_file')
@@ -26,7 +27,8 @@ sys.path.pop()
 
 assert hasattr(test_gen, 'check_sample'), 'check_sample must exist in the test'
 
-for path in pathlib.Path(data_path, 'Logs').iterdir():
+bar = tqdm.tqdm(list(pathlib.Path(data_path, 'Logs').iterdir()), unit='file')
+for path in bar:
     name = path.name
     if not name.startswith('log_test_'):
         continue
@@ -46,5 +48,6 @@ for path in pathlib.Path(data_path, 'Logs').iterdir():
 
     res, error = test_gen.check_sample(log, data)
     if not res:
-        print(f'File {index} failed with {error}')
+        bar.write(f'File {index} failed with {error}')
 
+bar.close()
