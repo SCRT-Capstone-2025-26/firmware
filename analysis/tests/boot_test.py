@@ -28,14 +28,11 @@ sd = LogExpectation('^SD inited$', core=0, latest_time=20)
 file_num = LogExpectation('^File number [0-9]+ found$', core=0, latest_time=500)
 
 flying = LogExpectation('^Unknown -> Flying$', core=1, latest_time=60)
-flash = LogExpectation('^ERROR: Flash write failed$', core=1, latest_time=60)
 
 servo = LogExpectation('^Servo powered$', core=1, latest_time=2010)
 
 core_0 = [serial, sd, file_num]
 core_1 = [pins, leds, booting, test_mode, spi, baro, imu, unknown, flying, servo]
-
-checker.add_expected(flash)
 
 # Adding follows also adds them as expectations
 for previous, next in zip(core_0[:-1], core_0[1:]):
