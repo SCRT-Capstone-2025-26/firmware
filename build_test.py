@@ -1,5 +1,6 @@
 import os
-import importlib
+import sys
+import importlib.util
 import pathlib
 
 Import('env')
@@ -16,10 +17,16 @@ env.Append(CPPDEFINES=[
 
 test_path = os.getenv('TEST_FILE', None)
 assert test_path is not None, 'No test path provided'
+test_path = pathlib.Path(test_path)
 
+# See https://stackoverflow.com/questions/79852343/how-can-i-dynamically-load-and-execute-foo-py-if-it-contains-relative-imports
+# I don't want to force the scripts to be rewritten so I do sys path
+# It would probably be more correct to pop some stuff from sys path and then re add it
+sys.path.append(str(test_path.parent))
 spec = importlib.util.spec_from_file_location('test_gen', test_path)
 test_gen = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(test_gen)
+sys.path.pop()
 
 def check_attr(attr, attr_type):
     assert hasattr(test_gen, attr), f'No {attr} defined'

@@ -9,6 +9,8 @@ Servo = namedtuple('Servo', ('percent'))
 # The units here are not the standard SI units
 Current = namedtuple('Current', ('voltage', 'temp', 'current', 'power'))
 
+Log = namedtuple('Log', ('time', 'core', 'message'))
+
 item_types = {
     b'A': ('<Lfff', Acc),
     b'G': ('<Lfff', Gyro),
@@ -41,6 +43,25 @@ def read_all(file):
         items.append(item)
 
     return items
+
+
+def read_log(line):
+    header, content = line.split('] ')
+    timestamp, core = header.split(', ')
+
+    timestamp = int(timestamp.split(': ')[1].split('ms')[0])
+    core = int(core.split(': ')[1])
+
+    return Log(timestamp, core, content)
+
+
+def read_logs(file):
+    lines = file.read().splitlines()
+    logs = [read_log(line) for line in lines[:-1]]
+    if lines[-1] != '':
+        logs.append(read_log(lines[-1]))
+
+    return logs
 
 
 if __name__ == '__main__':
