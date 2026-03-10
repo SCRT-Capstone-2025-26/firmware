@@ -19,8 +19,8 @@ item_types = {
     b'B': ('<Lff', Baro),
     b'S': ('<Lf', Servo),
     b'C': ('<LHiiI', Current),
-    b'F': ('<fffff', FilterState),
-    b'R': ('<ffff', RotState)
+    b'F': ('<Lfffff', FilterState),
+    b'R': ('<Lffff', RotState)
 }
 
 # Can unpack_from be used?
