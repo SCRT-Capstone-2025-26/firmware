@@ -856,9 +856,8 @@ void loop1() {
   }
 
   if (board_mode == FLYING) {
+    write_data(FilterState{flight_state.state(0), flight_state.state(1), flight_state.cov(0, 0), flight_state.cov(1, 1), flight_state.cov(0, 1)});
     write_data(RotState{flight_state.rot.x(), flight_state.rot.y(), flight_state.rot.z(), flight_state.rot.w()});
-    // Get flash does involve some calculation so this could be optimized
-    write_data(flight_state.get_flash());
   }
 
   watchdog_update();

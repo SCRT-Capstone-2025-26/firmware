@@ -8,6 +8,8 @@ Baro = namedtuple('Baro', ('pressure', 'tempurate'))
 Servo = namedtuple('Servo', ('percent'))
 # The units here are not the standard SI units
 Current = namedtuple('Current', ('voltage', 'temp', 'current', 'power'))
+FilterState = namedtuple('FilterState', ('h', 'v', 'h_cov', 'v_cov', 'hv_cov'))
+RotState = namedtuple('RotState', ('x', 'y', 'z', 'w'))
 
 Log = namedtuple('Log', ('time', 'core', 'message'))
 
@@ -17,6 +19,8 @@ item_types = {
     b'B': ('<Lff', Baro),
     b'S': ('<Lf', Servo),
     b'C': ('<LHiiI', Current),
+    b'F': ('<fffff', FilterState),
+    b'R': ('<ffff', RotState)
 }
 
 # Can unpack_from be used?
