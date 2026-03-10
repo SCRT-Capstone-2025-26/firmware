@@ -874,7 +874,7 @@ void loop1() {
         //  for a bit then stopped we then have the problem that flash holds really old
         //  data. I don't think this is work addressing because there is no known way to
         //  write to flash to address it
-        note_error(String("Flash write failed (flash could be full)"), DO_NOTHING_ERR);
+        note_error("Flash write failed (flash could be full)", DO_NOTHING_ERR);
       }
     } else {
       if (prev_flash_write_failed) {
