@@ -104,7 +104,7 @@ bool servo_powered = false;
 float flight_servo_percent;
 Millis flight_servo_last_ms;
 
-Millis baro_read_time;
+Micros baro_read_time;
 BaroState baro_state = IDLE;
 
 INA745 current_sensor = INA745(CURRENT_1_ID, &Wire);
@@ -454,7 +454,7 @@ void update_servo() {
 }
 
 // TODO: Check self heating mentioned for similar product in MS5xxx library docs
-// TODO: Fix pres error after flight done
+// NOTE: Currently the barometer library can't fail a transfer because it is SPI this may change though
 void step_sample_baro() {
   switch (baro_state) {
     case IDLE:
@@ -471,7 +471,7 @@ void step_sample_baro() {
         }
 
         // Then add the current time so it is the future time when the delay is done
-        baro_read_time += millis();
+        baro_read_time += micros();
         baro_state = READING_TEMP;
       }
 
@@ -479,7 +479,8 @@ void step_sample_baro() {
 
     case READING_TEMP:
       // If we have finished the read we switch to the pressure reading
-      if (millis() >= baro_read_time) {
+      if (!is_after(baro_read_time, micros())) {
+
         // Set the baro_read_time to the sample delay
         if (baro.stepReadRawPres(&baro_read_time) != MS5611_READ_OK) {
           note_error("Baro pres failure", BARO_ERR);
@@ -489,7 +490,7 @@ void step_sample_baro() {
         }
 
         // Then add the current time so it is the future time when the delay is done
-        baro_read_time += millis();
+        baro_read_time += micros();
         baro_state = READING_PRES;
       }
       break;
@@ -497,7 +498,7 @@ void step_sample_baro() {
     case READING_PRES:
       // If we have finished the read we switch either clear the sensor
       //  or send the reading to flight state and restart the read
-      if (millis() >= baro_read_time) {
+      if (!is_after(baro_read_time, micros())) {
         if (baro.finishReading() != MS5611_READ_OK) {
           note_error("Baro finish failure", BARO_ERR);
           // This is not critical we just reset the read
@@ -521,7 +522,7 @@ void step_sample_baro() {
 
           // We now restart the sample (we could use a switch fallthrough here)
           // Set the baro_read_time to the sample delay
-          if (!baro.startReadRawTemp(&baro_read_time) != MS5611_READ_OK) {
+          if (baro.startReadRawTemp(&baro_read_time) != MS5611_READ_OK) {
             note_error("Baro temp after finish failure", BARO_ERR);
             // This is not critical we just reset the read
             baro_state = IDLE;
@@ -529,7 +530,7 @@ void step_sample_baro() {
           }
 
           // Then add the current time so it is the future time when the delay is done
-          baro_read_time += millis();
+          baro_read_time += micros();
 
           baro_state = READING_TEMP;
         } else {
