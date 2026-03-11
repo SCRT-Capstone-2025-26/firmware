@@ -480,7 +480,6 @@ void step_sample_baro() {
     case READING_TEMP:
       // If we have finished the read we switch to the pressure reading
       if (!is_after(baro_read_time, micros())) {
-
         // Set the baro_read_time to the sample delay
         if (baro.stepReadRawPres(&baro_read_time) != MS5611_READ_OK) {
           note_error("Baro pres failure", BARO_ERR);
