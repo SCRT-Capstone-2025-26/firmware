@@ -1,7 +1,7 @@
 from log_check import LogExpectation, LogChecker
 
 max_steps = 1
-micros_per_step = 5 * 1000 * 1000
+micros_per_step = 3 * 1000 * 1000
 
 acc_data = [(0.0, 0.0, 0.0)]
 hg_acc_data = [(0.0, 0.0, 0.0)]
@@ -28,11 +28,15 @@ sd = LogExpectation('^SD inited$', core=0, latest_time=20)
 file_num = LogExpectation('^File number [0-9]+ found$', core=0, latest_time=500)
 
 flying = LogExpectation('^Unknown -> Flying$', core=1, latest_time=60)
+# We expect the flash reinit to fail since flash is disabled
+flash_reinit = LogExpectation('^ERROR: Flash reinit failed$', core=1, latest_time=60)
 
 servo = LogExpectation('^Servo powered$', core=1, latest_time=2010)
 
+checker.add_expected(servo)
+
 core_0 = [serial, sd, file_num]
-core_1 = [pins, leds, booting, test_mode, spi, baro, imu, unknown, flying, servo]
+core_1 = [pins, leds, booting, test_mode, spi, baro, imu, unknown, flying]
 
 # Adding follows also adds them as expectations
 for previous, next in zip(core_0[:-1], core_0[1:]):

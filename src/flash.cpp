@@ -38,6 +38,10 @@ size_t flash_index = INVALID_FLASH_INDEX;
 // Binary searches the array for the last valid entry
 // TODO: Verify
 bool flash_reinit(FlashState *state) {
+#ifdef NO_FLASH
+  return false;
+#endif
+
   size_t low = -1;
   size_t high = FLASH_BUF_ELEMS;
 
@@ -70,6 +74,10 @@ void _clear_flash_buf(void *addr) {
 }
 
 bool clear_flash_buf() {
+#ifdef NO_FLASH
+  return true;
+#endif
+
   // Check the logging core is ready for a flash write
   if (!flash_ready) {
     return false;

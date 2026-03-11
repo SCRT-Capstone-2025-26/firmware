@@ -6,6 +6,7 @@
 #include <cstdint>
 
 // NOTE: I think we could use the uinitialized RAM macro for a watchdog reboot
+// NOTE: When flash is disable through NO_FLASH all functions will report working, but flash_reinit
 
 // This may need to be compressed
 struct FlashState {
