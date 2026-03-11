@@ -27,17 +27,24 @@ sys.path.pop()
 
 assert hasattr(test_gen, 'check_sample'), 'check_sample must exist in the test'
 
-log_files = list(pathlib.Path(data_path, 'Logs').iterdir())
-bar = tqdm.tqdm(log_files, unit='file')
+all_log_files = list(pathlib.Path(data_path, 'Logs').iterdir())
+test_log_files = []
+for path in all_log_files:
+    name = path.name
+    curr_test_id = name.removeprefix('log_test_').split('_')[-2]
+    if test_id != curr_test_id:
+        continue
+
+    test_log_files.append(path)
+
+# The last file is ignored since it may be malformed due to the being uplugged while running it
+bar = tqdm.tqdm(test_log_files[:-1], unit='file')
 for path in bar:
     name = path.name
     if not name.startswith('log_test_'):
         continue
 
     index = int(name.split('_')[-1].removesuffix('.txt'))
-    # The last test file may not have finished
-    if index == len(log_files) - 1:
-        continue
 
     curr_test_id = name.removeprefix('log_test_').removesuffix(f'_{index}.txt')
     if test_id != curr_test_id:
