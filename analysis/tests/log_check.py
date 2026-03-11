@@ -1,7 +1,7 @@
 import re
 
 class LogExpectation():
-    def __init__(self, message, latest_time=None, core=None):
+    def __init__(self, message, core=None, latest_time=None):
         self.latest_time = latest_time
         self.core = core
         self.message = message
@@ -18,6 +18,10 @@ class LogExpectation():
             return False
 
         return True
+
+
+    def __str__(self):
+        return f'LogExpectation(message={self.message}, core={self.core}, latest_time={self.latest_time})'
 
 
 class LogChecker():
