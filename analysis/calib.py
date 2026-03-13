@@ -1,6 +1,10 @@
 import argparse
+<<<<<<< HEAD
 
 import data_parse
+=======
+import parse
+>>>>>>> f9be440 (fix typo)
 import scipy.optimize as opt
 import matplotlib.pyplot as plt
 import math
@@ -14,7 +18,11 @@ def calib_acc(accs, steady_slices):
     acc_slices = [accs[a:b] for a, b in steady_slices]
 
     # Compute the mean for each slice
+<<<<<<< HEAD
     means = [data_parse.Acc(
+=======
+    means = [parse.Acc(
+>>>>>>> f9be440 (fix typo)
         sum(acc.x for acc in accs) / len(accs),
         sum(acc.y for acc in accs) / len(accs),
         sum(acc.z for acc in accs) / len(accs)
@@ -38,7 +46,7 @@ def calib_acc(accs, steady_slices):
         return error
 
     g, *bias = opt.minimize(loss, (1, 0, 0, 0)).x
-    return float(g), data_parse.Acc(*(float(bias_entry) for bias_entry in bias))
+    return float(g), parse.Acc(*(float(bias_entry) for bias_entry in bias))
 
 
 def calib_gyro(gyros, steady_slices):
@@ -48,7 +56,7 @@ def calib_gyro(gyros, steady_slices):
     gyros = sum(gyro_slices, [])
 
     # Compute the mean which is the bias
-    mean = data_parse.Gyro(
+    mean = parse.Gyro(
         sum(gyro.x for gyro in gyros) / len(gyros),
         sum(gyro.y for gyro in gyros) / len(gyros),
         sum(gyro.z for gyro in gyros) / len(gyros)
@@ -63,10 +71,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     with open(args.path, 'rb') as file:
-        items = data_parse.read_all(file)
+        items = parse.read_all(file)
 
-    accs = [acc for (_, acc) in items if isinstance(acc, data_parse.Acc)]
-    gyros = [gyro for (_, gyro) in items if isinstance(gyro, data_parse.Gyro)]
+    accs = [acc for acc in items if isinstance(acc, parse.Acc)]
+    gyros = [gyro for gyro in items if isinstance(gyro, parse.Gyro)]
 
     plt.plot(accs)
 
