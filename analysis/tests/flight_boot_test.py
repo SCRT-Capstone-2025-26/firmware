@@ -36,7 +36,7 @@ servo = LogExpectation('^Servo powered$', core=1, latest_time=2010)
 checker.add_expected(servo)
 
 core_0 = [serial, sd, file_num]
-core_1 = [pins, leds, booting, test_mode, spi, baro, imu, unknown, flying]
+core_1 = [pins, leds, booting, test_mode, spi, baro, imu, unknown, flying, flash_reinit]
 
 # Adding follows also adds them as expectations
 for previous, next in zip(core_0[:-1], core_0[1:]):
