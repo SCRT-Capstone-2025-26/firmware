@@ -63,8 +63,8 @@ if __name__ == '__main__':
     with open(args.path, 'rb') as file:
         items = parse.read_all(file)
 
-    accs = [acc for acc in items if isinstance(acc, parse.Acc)]
-    gyros = [gyro for gyro in items if isinstance(gyro, parse.Gyro)]
+    accs = [acc for (_, acc) in items if isinstance(acc, parse.Acc)]
+    gyros = [gyro for (_, gyro) in items if isinstance(gyro, parse.Gyro)]
 
     plt.plot(accs)
     plt.show(block=False)
