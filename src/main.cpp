@@ -630,8 +630,6 @@ void sample_imu() {
         break;
 
       case ACC_TAG:
-        acc_axis_read = true;
-
         // If we are in high_g mode and the acc_fifo has started outputing high_g
         //  we ignore our data
         // If we are not in high_g mode then since we are getting low g data
@@ -643,6 +641,8 @@ void sample_imu() {
         } else {
           acc_fifo_switched = true;
         }
+
+        acc_axis_read = true;
 
         acc_axis.x() = reading_data[0] * ACC_SENS;
         acc_axis.y() = reading_data[1] * ACC_SENS;
@@ -669,8 +669,6 @@ void sample_imu() {
       case ACC_HG_TAG:
         // Getting a high g reading from the fifo is the same as getting an normal accelerometer reading
         //  at least a raw reading
-        acc_axis_read = true;
-
         // See case ACC_TAG
         if (!acc_high_g) {
           if (acc_fifo_switched) {
@@ -679,6 +677,8 @@ void sample_imu() {
         } else {
           acc_fifo_switched = true;
         }
+
+        acc_axis_read = true;
 
         acc_axis.x() = reading_data[0] * ACC_HIGH_G_SENS;
         acc_axis.y() = reading_data[1] * ACC_HIGH_G_SENS;
@@ -718,8 +718,13 @@ void sample_imu() {
     watchdog_update();
   }
 
-  write_data(Acc{acc_axis.x(), acc_axis.y(), acc_axis.z()});
-  write_data(Gyro{gyro_axis.x(), gyro_axis.y(), gyro_axis.z()});
+  if (acc_axis_read) {
+    write_data(Acc{acc_axis.x(), acc_axis.y(), acc_axis.z()});
+  }
+
+  if (gyro_axis_read) {
+    write_data(Gyro{gyro_axis.x(), gyro_axis.y(), gyro_axis.z()});
+  }
 }
 
 void sample_current() {
