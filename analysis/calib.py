@@ -1,6 +1,5 @@
 import argparse
 
-from matplotlib import legend
 import data_parse
 import scipy.optimize as opt
 import matplotlib.pyplot as plt
