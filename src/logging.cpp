@@ -1,6 +1,7 @@
 #include <atomic>
 #include <SdFat.h>
 #include <cstddef>
+#include <cstdint>
 #include <pico/platform.h>
 #include <variant>
 #include <tuple>
@@ -183,7 +184,8 @@ void handle_log_event(LogEvent event) {
   String content = match(event.value,
     [](String str) { return String(str); },
     [](Error err) { return String("ERROR: " + err.content); },
-    [](ModeChange change) { return String(MODE_TO_NAME[change.old] + " -> " + MODE_TO_NAME[change.next]); }
+    [](ModeChange change) { return String(MODE_TO_NAME[change.old] + " -> " + MODE_TO_NAME[change.next]); },
+    [](BoardID boardID) { return String("Board ID: 0x" + String((uint32_t)(boardID.id >> 32), 16) + String((uint32_t)(boardID.id), 16)); }
   );
 
   // For some reason the Arduino examples use this string adding
