@@ -1,10 +1,5 @@
 import argparse
-<<<<<<< HEAD
-
-import data_parse
-=======
 import parse
->>>>>>> f9be440 (fix typo)
 import scipy.optimize as opt
 import matplotlib.pyplot as plt
 import math
@@ -18,11 +13,7 @@ def calib_acc(accs, steady_slices):
     acc_slices = [accs[a:b] for a, b in steady_slices]
 
     # Compute the mean for each slice
-<<<<<<< HEAD
-    means = [data_parse.Acc(
-=======
     means = [parse.Acc(
->>>>>>> f9be440 (fix typo)
         sum(acc.x for acc in accs) / len(accs),
         sum(acc.y for acc in accs) / len(accs),
         sum(acc.z for acc in accs) / len(accs)
