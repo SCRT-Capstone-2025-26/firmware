@@ -101,3 +101,14 @@ Millis millis_in_mode() {
   return millis() - last_mode_change;
 }
 
+bool is_after(Micros a, Micros b) {
+  Micros delta = b - a;
+
+  // This only works since Micros is unsigned and therefore implements modulo arithmetic
+  // If the highest bit is set then delta must have underflowed so a > b
+  //  this if a has overflowed and b hasn't because of modular arithmetic
+  //  it will have the same result
+  Micros high_bit = delta >> ((sizeof(Micros) * 8) - 1);
+  return high_bit == 1;
+}
+

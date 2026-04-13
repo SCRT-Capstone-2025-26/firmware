@@ -43,11 +43,16 @@
 // This should be compile time const
 #define SERVO_SMOOTH_LN_MS std::log(SERVO_SMOOTH * 0.001f)
 
+// NOTE: The FS and senstivities are linked, but because the library is strange we have to include
+//  them twice
 // TODO: Determine these
-// NOTE: Changing these requires recalibration
-#define GYRO_FS 4000
-#define ACC_FS 4
+#define GYRO_FS       4000
+#define ACC_FS        4
 #define ACC_HIGH_G_FS 64
+// TODO: Maybe tune the senstivities based on calibration
+#define GYRO_SENS       ISM6HG256X_GYRO_SENSITIVITY_FS_4000DPS
+#define ACC_SENS        ISM6HG256X_ACC_SENSITIVITY_FS_4G
+#define ACC_HIGH_G_SENS ISM6HG256X_ACC_SENSITIVITY_FS_64G
 
 // We treat very large or small values as errors to avoid hitting an extreme tail in the kalman filter
 // TODO: Detrmine these
@@ -65,17 +70,6 @@
 //  of the low so when 80% of that is reached it switches
 // TODO: Determine value
 #define ACC_HIGH_G_SWITCH (ACC_FS * GRAVITY_ACC * 0.8f)
-
-// TODO: Tune the senstivities based on calibration
-
-// I don't know why the constants don't work
-// This is just guestimated
-#define GYRO_SENS (ISM6HG256X_GYRO_SENSITIVITY_FS_4000DPS * 0.5f)
-// I don't know why the constants don't work
-// This is just guestimated
-#define ACC_SENS (ISM6HG256X_ACC_SENSITIVITY_FS_4G * 3.95)
-// This is just guestimated
-#define ACC_HIGH_G_SENS (ISM6HG256X_ACC_SENSITIVITY_FS_64G * 0.55f)
 
 #define ARM_ON  LOW
 #define ARM_OFF HIGH
@@ -96,9 +90,9 @@ enum BaroState {
   READING_PRES
 };
 
-const Eigen::Vector3f ACC_BIAS(0.008095040980820646f, -0.07066856444586497f, -0.06873988143672187f);
-const Eigen::Vector3f ACC_HIGH_G_BIAS(0.0f, 0.0f, 0.0f);
-const Eigen::Vector3f GYRO_BIAS(0.0020154851083784846f, 0.0032312920667005307f, -0.002640418776621421f);
+const Eigen::Vector3f ACC_BIAS(_CALIB_ACC_BIAS_1, _CALIB_ACC_BIAS_2, _CALIB_ACC_BIAS_3);
+const Eigen::Vector3f ACC_HIGH_G_BIAS(_CALIB_ACC_HIGH_G_BIAS_1, _CALIB_ACC_HIGH_G_BIAS_2, _CALIB_ACC_HIGH_G_BIAS_3);
+const Eigen::Vector3f GYRO_BIAS(_CALIB_GYRO_BIAS_1, _CALIB_GYRO_BIAS_2, _CALIB_GYRO_BIAS_3);
 
 FlightState flight_state = FlightState();
 RestState rest_state = RestState();
@@ -107,7 +101,7 @@ bool servo_powered = false;
 float flight_servo_percent;
 Millis flight_servo_last_ms;
 
-Millis baro_read_time;
+Micros baro_read_time;
 BaroState baro_state = IDLE;
 
 INA745 current_sensor = INA745(CURRENT_1_ID, &Wire);
@@ -204,6 +198,29 @@ void setup1() {
   // Push mode uses the leds
   push_mode(BOOTING);
 
+  // Check whether the board has the correct calibration id
+  pico_unique_board_id_t id;
+  // NOTE: This loads from flash which can be modified (it is not a UUID from the board necesarily)
+  pico_get_unique_board_id(&id);
+
+  // Make sure that we can use a uint64_t for this
+  static_assert(PICO_UNIQUE_BOARD_ID_SIZE_BYTES == 8, "Calib check size assumption invalid");
+  // Since bytes is 8 we can use a uint64_t compare
+  uint64_t id64 = *(uint64_t *)id.id;
+  log_message(BoardID{id64});
+
+  // Check that the calibration is either the default
+#if _CALIB_IS_DEFAULT
+  // We log and emit a compiler warning that the board is not calibrated
+#warning NOTE: Using default calibration values (aka this board is uncalibrated)
+  log_message("NOTE: Using default calibration values (aka this board is uncalibrated)");
+#else
+  if (id64 != _CALIB_ID) {
+    note_error("Invalid calibration", FAIL_NOW_ERR);
+    return;
+  }
+#endif
+
   // The radio is not currently used (or installed) so we just set the led to mark that (neutral is blue which is visible)
   leds[LED_RADIO] = LED_NEUTRAL;
 
@@ -255,9 +272,9 @@ void setup1() {
   imu_init &= imu.Set_HG_X_OutputDataRate(ACC_RATE) == ISM6HG256X_OK;
 
   // Set the sensor scales
-  imu_init &= imu.Set_X_FullScale(GYRO_FS) == ISM6HG256X_OK;
+  imu_init &= imu.Set_G_FullScale(GYRO_FS) == ISM6HG256X_OK;
   imu_init &= imu.Set_X_FullScale(ACC_FS) == ISM6HG256X_OK;
-  imu_init &= imu.Set_X_FullScale(ACC_HIGH_G_FS) == ISM6HG256X_OK;
+  imu_init &= imu.Set_HG_X_FullScale(ACC_HIGH_G_FS) == ISM6HG256X_OK;
 
   // Set the rate at which data is stored in the fifo (I believe)
   imu_init &= imu.FIFO_G_Set_BDR(GYRO_RATE) == ISM6HG256X_OK;
@@ -471,24 +488,29 @@ void update_servo() {
 }
 
 // TODO: Check self heating mentioned for similar product in MS5xxx library docs
-// TODO: Fix pres error after flight done
+// NOTE: Currently the barometer library can't fail a transfer because it is SPI this may change though
 void step_sample_baro() {
+  // The barometer takes time to complete a read so this holds
+  //  the time that the barometer will be reading for
+  //  if the barometer begins read pressure or temperature read
+  Micros read_duration;
+
   switch (baro_state) {
     case IDLE:
       // We only sample when flying
       if (board_mode == FLYING) {
-        // We read the pressure first because we care about its accuracy less
+        // We read the temperature first because we care about its accuracy less
         //  so reading it first creates less of a time delay issue
-        // Set the baro_read_time to the sample delay
-        if (baro.startReadRawTemp(&baro_read_time) != MS5611_READ_OK) {
+        if (baro.startReadRawTemp(&read_duration) != MS5611_READ_OK) {
           note_error("Baro temp failure", BARO_ERR);
           // This is not critical we just reset the read
           baro_state = IDLE;
           break;
         }
 
-        // Then add the current time so it is the future time when the delay is done
-        baro_read_time += millis();
+        // Update the time that the barometer will be ready to read again once it has had
+        //  time to complete the sample
+        baro_read_time = micros() + read_duration;
         baro_state = READING_TEMP;
       }
 
@@ -496,17 +518,17 @@ void step_sample_baro() {
 
     case READING_TEMP:
       // If we have finished the read we switch to the pressure reading
-      if (millis() >= baro_read_time) {
-        // Set the baro_read_time to the sample delay
-        if (baro.stepReadRawPres(&baro_read_time) != MS5611_READ_OK) {
+      if (!is_after(baro_read_time, micros())) {
+        if (baro.stepReadRawPres(&read_duration) != MS5611_READ_OK) {
           note_error("Baro pres failure", BARO_ERR);
           // This is not critical we just reset the read
           baro_state = IDLE;
           break;
         }
 
-        // Then add the current time so it is the future time when the delay is done
-        baro_read_time += millis();
+        // Update the time that the barometer will be ready to read again once it has had
+        //  time to complete the sample
+        baro_read_time = micros() + read_duration;
         baro_state = READING_PRES;
       }
       break;
@@ -514,7 +536,7 @@ void step_sample_baro() {
     case READING_PRES:
       // If we have finished the read we switch either clear the sensor
       //  or send the reading to flight state and restart the read
-      if (millis() >= baro_read_time) {
+      if (!is_after(baro_read_time, micros())) {
         if (baro.finishReading() != MS5611_READ_OK) {
           note_error("Baro finish failure", BARO_ERR);
           // This is not critical we just reset the read
@@ -542,16 +564,16 @@ void step_sample_baro() {
           write_data(Baro{pres, temp});
 
           // We now restart the sample (we could use a switch fallthrough here)
-          // Set the baro_read_time to the sample delay
-          if (!baro.startReadRawTemp(&baro_read_time) != MS5611_READ_OK) {
+          if (baro.startReadRawTemp(&read_duration) != MS5611_READ_OK) {
             note_error("Baro temp after finish failure", BARO_ERR);
             // This is not critical we just reset the read
             baro_state = IDLE;
             break;
           }
 
-          // Then add the current time so it is the future time when the delay is done
-          baro_read_time += millis();
+          // Update the time that the barometer will be ready to read again once it has had
+          //  time to complete the sample
+          baro_read_time = micros() + read_duration;
 
           baro_state = READING_TEMP;
         } else {
@@ -566,6 +588,14 @@ void step_sample_baro() {
 }
 
 bool set_acc_mode(bool new_high_g) {
+#ifdef CALIB_HG
+  new_high_g = true;
+#endif
+
+#ifdef CALIB_LG
+  new_high_g = false;
+#endif
+
   if (acc_high_g == new_high_g) {
     return true;
   }
@@ -789,6 +819,7 @@ void sample_current() {
 // This handles what the board should do when it has reached a critical failure
 // There is no reason to not just reboot unless we are in debug in which case we can
 // disable the watchdog and sleep to show what happened
+// NOTE: This can be called before the watchdog is initialized
 void do_failure() {
 #ifndef DEBUG
   watchdog_reboot(0, 0, 0);

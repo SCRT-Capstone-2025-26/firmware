@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import math
 
 # NOTE: steady_slices should not overlap
-# TODO: This should also calibrate the "strengths" (LSB to N/kg or rad/s)
+# TODO: It should calibrate sensitivities for each x, y, and z axis as well as the bias since there
+#  was 1.02g error after bias was accounted for on one of the hg accs
 
 def calib_acc(accs, steady_slices):
     # get all the slices in a list
@@ -35,7 +36,7 @@ def calib_acc(accs, steady_slices):
 
         return error
 
-    g, *bias = opt.minimize(loss, (9.81, 0, 0, 0)).x
+    g, *bias = opt.minimize(loss, (1, 0, 0, 0)).x
     return float(g), parse.Acc(*(float(bias_entry) for bias_entry in bias))
 
 
@@ -67,16 +68,24 @@ if __name__ == '__main__':
     gyros = [gyro for (_, gyro) in items if isinstance(gyro, parse.Gyro)]
 
     plt.plot(accs)
+
+    plt.legend(['Accelerometer X Axis', 'Accelerometer Y Axis', 'Accelerometer Z Axis'])
+    plt.ylabel('Acceleration')
+    plt.xlabel('Index')
+
     plt.show(block=False)
 
-    slices = int(input('Steady Regions: '))
+    slices = int(input('How many steady regions: '))
 
     steady_slices = []
     for i in range(slices):
-        low = int(input('Low: '))
-        high = int(input('High: '))
+        low = int(input(f'Region {i + 1} start index: '))
+        high = int(input(f'Region {i + 1} end index: '))
         steady_slices.append((low, high))
 
-    print(calib_acc(accs, steady_slices))
-    print(calib_gyro(gyros, steady_slices))
+    g, acc_bias = calib_acc(accs, steady_slices)
+    gyro_bias = calib_gyro(gyros, steady_slices)
+    print(f'Little g observed: {g}')
+    print(f'Acc bias {acc_bias}')
+    print(f'Gyro bias {gyro_bias}')
 

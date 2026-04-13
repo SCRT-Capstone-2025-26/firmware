@@ -100,5 +100,9 @@ void push_mode(BoardMode mode);
 void note_error(String &&message, FailComp failure_comp);
 Millis millis_in_mode();
 
+// Is a after b (handling overflows by assuming that the difference is small)
+// This should work for anything less than about 35 minutes
+bool is_after(Micros a, Micros b);
+
 #endif
 
