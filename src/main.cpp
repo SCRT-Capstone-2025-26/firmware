@@ -56,11 +56,11 @@
 
 // We treat very large or small values as errors to avoid hitting an extreme tail in the kalman filter
 // TODO: Detrmine these
-#define MAX_PRES 10000.0f
-#define MIN_PRES -10000.0f
+#define MAX_PRES 1000000.0f
+#define MIN_PRES -1000000.0f
 
-#define MAX_TEMP 10000.0f
-#define MIN_TEMP -10000.0f
+#define MAX_TEMP 1000000.0f
+#define MIN_TEMP -1000000.0f
 
 // TODO: Add gyro
 #define MAX_ACC_SQR_MAG 10000000.0f
@@ -237,6 +237,9 @@ void setup1() {
   // We only want to run tests if the board has been rebooted to stop running
   //  test immediatly when the board is plugged in to reflash
   if (!reboot) {
+    // It seems like the LEDs need a bit of time to boot up
+    sleep(1);
+    led_show();
     while (true) { sleep(1000); }
   }
 #endif
