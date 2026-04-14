@@ -63,23 +63,23 @@ check_arr(baro_data, 2, 'baro_data')
 with open(pathlib.Path('src', 'test_data.h'), 'w+') as file:
     file.write(
 f'''\
-size_t max_steps = {test_gen.max_steps};
-size_t micros_per_step = {test_gen.micros_per_step};
+const size_t max_steps = {test_gen.max_steps};
+const size_t micros_per_step = {test_gen.micros_per_step};
 
-float acc_x_data[] = {{{', '.join(str(acc[0]) for acc in acc_data)}}};
-float acc_y_data[] = {{{', '.join(str(acc[1]) for acc in acc_data)}}};
-float acc_z_data[] = {{{', '.join(str(acc[2]) for acc in acc_data)}}};
+const float acc_x_data[] = {{{', '.join(str(acc[0]) for acc in acc_data)}}};
+const float acc_y_data[] = {{{', '.join(str(acc[1]) for acc in acc_data)}}};
+const float acc_z_data[] = {{{', '.join(str(acc[2]) for acc in acc_data)}}};
 
-float hg_acc_x_data[] = {{{', '.join(str(hg_acc[0]) for hg_acc in hg_acc_data)}}};
-float hg_acc_y_data[] = {{{', '.join(str(hg_acc[1]) for hg_acc in hg_acc_data)}}};
-float hg_acc_z_data[] = {{{', '.join(str(hg_acc[2]) for hg_acc in hg_acc_data)}}};
+const float hg_acc_x_data[] = {{{', '.join(str(hg_acc[0]) for hg_acc in hg_acc_data)}}};
+const float hg_acc_y_data[] = {{{', '.join(str(hg_acc[1]) for hg_acc in hg_acc_data)}}};
+const float hg_acc_z_data[] = {{{', '.join(str(hg_acc[2]) for hg_acc in hg_acc_data)}}};
 
-float gyro_x_data[] = {{{', '.join(str(gyro[0]) for gyro in gyro_data)}}};
-float gyro_y_data[] = {{{', '.join(str(gyro[1]) for gyro in gyro_data)}}};
-float gyro_z_data[] = {{{', '.join(str(gyro[2]) for gyro in gyro_data)}}};
+const float gyro_x_data[] = {{{', '.join(str(gyro[0]) for gyro in gyro_data)}}};
+const float gyro_y_data[] = {{{', '.join(str(gyro[1]) for gyro in gyro_data)}}};
+const float gyro_z_data[] = {{{', '.join(str(gyro[2]) for gyro in gyro_data)}}};
 
-float pres_data[] = {{{', '.join(str(baro[0]) for baro in baro_data)}}};
-float temp_data[] = {{{', '.join(str(baro[1]) for baro in baro_data)}}};
+const float pres_data[] = {{{', '.join(str(baro[0]) for baro in baro_data)}}};
+const float temp_data[] = {{{', '.join(str(baro[1]) for baro in baro_data)}}};
 
 '''
     )
