@@ -1,3 +1,4 @@
+from math import sqrt
 from log_check import LogExpectation, LogChecker
 
 # 10,000ft in meters
@@ -5,19 +6,37 @@ apogee = 10000 / 3.28084
 g = 9.81
 # y = -gt^2 + v_0t
 # apogee = -gt_a^2 + v_0t_a
-# t_a = g / 2v_0 since the vertex is minus a over 2 b
-# apogee = -g(g / 2v_0)^2 + v_0(g / 2v_0)
-# apogee = -g^3 / 4v_0^2 + g / 2
+# t_a = v_0 / 2g since the vertex is minus b over 2 a
+# apogee = -g(v_0 / 2g)^2 + v_0(v_0 / 2g)
+# apogee = -v_0^2 / 4g + v_0^2 / 2g = v_0^2 / 4g
+# v_0 = 2sqrt(apogee * g)
+v_0 = 2 * sqrt(apogee * g)
+t_a = v_0 / (2 * g) # also sqrt(apogee / g)
 
-max_steps = 1
-micros_per_step = 3 * 1000 * 1000
+# 5ms steps
+micros_per_step = 500
+# This calculates have many steps of 500 micros it takes to reach 1.2 * t_a
+max_steps = int(t_a * 1.2 / micros_per_step * 1000 * 1000)
 
-acc_data = [(0.0, 0.0, 9.81)]
-hg_acc_data = [(0.0, 0.0, 9.81)]
+# It is somewhat counterintuitive, but we are in free fall
+acc_data = [(0.0, 0.0, 0.0)] * max_steps
+hg_acc_data = [(0.0, 0.0, 0.0)] * max_steps
 
-gyro_data = [(0.0, 0.0, 0.0)]
+gyro_data = [(0.0, 0.0, 0.0)] * max_steps
 
-baro_data = [(0.0, 0.0)]
+# This is the formula used by https://github.com/RobTillaart/MS5611
+# 44307.694 * (1 - pow(pressure / SEA_LEVEL_PRESURE, 0.190284))
+def h_to_pres(height):
+    sea_level_pressure = 1013.15 * 1e2
+    return sea_level_pressure * ((1 - (height / 44307.694)) ** (1 / 0.190284))
+
+
+baro_data = []
+for i in range(max_steps):
+    # Time in seconds
+    t = i * micros_per_step / 1000 / 1000
+    y = (-g * (t ** 2)) + (v_0 * t)
+    baro_data.append((h_to_pres(y), 0.0))
 
 checker = LogChecker()
 
