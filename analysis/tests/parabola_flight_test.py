@@ -1,5 +1,6 @@
 from math import sqrt
 from log_check import LogExpectation, LogChecker
+import parse
 
 # 10,000ft in meters
 apogee = 10000 / 3.28084
@@ -24,6 +25,10 @@ hg_acc_data = [(0.0, 0.0, 0.0)] * max_steps
 
 gyro_data = [(0.0, 0.0, 0.0)] * max_steps
 
+def height(t):
+    return (-g * (t ** 2)) + (v_0 * t)
+
+
 # This is the formula used by https://github.com/RobTillaart/MS5611
 # 44307.694 * (1 - pow(pressure / SEA_LEVEL_PRESURE, 0.190284))
 def h_to_pres(height):
@@ -35,8 +40,7 @@ baro_data = []
 for i in range(max_steps):
     # Time in seconds
     t = i * micros_per_step / 1000 / 1000
-    y = (-g * (t ** 2)) + (v_0 * t)
-    baro_data.append((h_to_pres(y), 0.0))
+    baro_data.append((h_to_pres(height(t)), 0.0))
 
 checker = LogChecker()
 
@@ -79,4 +83,16 @@ for previous, next in zip(core_1[:-1], core_1[1:]):
 
 # Data and logs are already parsed
 def check_sample(log, data):
+    for millis, item in data:
+        t = millis / 1000
+        if isinstance(item, parse.FilterState):
+            y = height(t)
+            error = abs(item.h - y)
+            # The t > x cases gives the filter a bit of time to catch up
+            # Since the starting velocities are different
+            # These should be made tighter
+            if (error > 0.5 and t > 10) or (error > 2 and t > 3):
+                return False, f'Height estimated to be {y}m at {item.h}m {t}s in flight'
+
     return checker.check(log)
+

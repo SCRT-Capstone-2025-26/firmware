@@ -14,13 +14,13 @@ RotState = namedtuple('RotState', ('x', 'y', 'z', 'w'))
 Log = namedtuple('Log', ('time', 'core', 'message'))
 
 item_types = {
-    b'A': ('<Lfff', Acc),
-    b'G': ('<Lfff', Gyro),
-    b'B': ('<Lff', Baro),
-    b'S': ('<Lf', Servo),
-    b'C': ('<LHiiI', Current),
-    b'F': ('<Lfffff', FilterState),
-    b'R': ('<Lffff', RotState)
+    b'A': ('fff', Acc),
+    b'G': ('fff', Gyro),
+    b'B': ('ff', Baro),
+    b'S': ('f', Servo),
+    b'C': ('HiiI', Current),
+    b'F': ('fffff', FilterState),
+    b'R': ('ffff', RotState)
 }
 
 # Can unpack_from be used?
@@ -30,6 +30,7 @@ def read_item(file):
         return None
 
     packing, item_type = item_types[id]
+    packing = '<L' + packing
 
     data = file.read(struct.calcsize(packing))
     timestamp, *args = struct.unpack(packing, data)

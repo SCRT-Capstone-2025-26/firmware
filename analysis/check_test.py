@@ -62,3 +62,4 @@ for path in bar:
         bar.write(f'File {index} failed with {error}')
 
 bar.close()
+

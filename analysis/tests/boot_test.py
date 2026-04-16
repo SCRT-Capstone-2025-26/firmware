@@ -44,3 +44,4 @@ for previous, next in zip(core_1[:-1], core_1[1:]):
 # Data and logs are already parsed
 def check_sample(log, data):
     return checker.check(log)
+
