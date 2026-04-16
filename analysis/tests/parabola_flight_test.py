@@ -49,6 +49,8 @@ pins = LogExpectation('^Pins inited$', core=1, latest_time=10)
 leds = LogExpectation('^LEDs inited$', core=1, latest_time=10)
 
 booting = LogExpectation('^Booting -> Booting$', core=1, latest_time=10)
+board_id = LogExpectation('^Board ID: 0x[0-9a-f]{16}$', core=1, latest_time=10)
+uncalibrated = LogExpectation(r'^NOTE: Using default calibration values \(aka this board is uncalibrated\)$', core=1, latest_time=10)
 test_mode = LogExpectation('^Board is in TEST mode$', core=1, latest_time=10)
 spi = LogExpectation('^SPI inited$', core=1, latest_time=10)
 baro = LogExpectation('^Barometer inited$', core=1, latest_time=20)
@@ -59,20 +61,16 @@ sd = LogExpectation('^SD inited$', core=0, latest_time=20)
 # Finding a file takes longer the more files
 file_num = LogExpectation('^File number [0-9]+ found$', core=0, latest_time=500)
 
-unarmed = LogExpectation('^Unknown -> Unarmed$', core=1, latest_time=2020)
-log_wait = LogExpectation('^Waiting on log core$', core=1, latest_time=2020)
-log_boot = LogExpectation('^Log core booted$', core=1, latest_time=2020)
-sd_init_c1 = LogExpectation('^SD inited$', core=1, latest_time=2020)
-# Flash is disabled on the test so this should be fast
-flash_clear = LogExpectation('^Clearing flash$', core=1, latest_time=2020)
-armed = LogExpectation('^Unarmed -> Armed$', core=1, latest_time=2020)
+flying = LogExpectation('^Unknown -> Flying$', core=1, latest_time=60)
+# We expect the flash reinit to fail since flash is disabled
+flash_reinit = LogExpectation('^ERROR: Flash reinit failed$', core=1, latest_time=60)
 
 servo = LogExpectation('^Servo powered$', core=1, latest_time=2010)
 
 checker.add_expected(servo)
 
 core_0 = [serial, sd, file_num]
-core_1 = [pins, leds, booting, test_mode, spi, baro, imu, unknown, unarmed, log_wait, log_boot, sd_init_c1, flash_clear, armed]
+core_1 = [pins, leds, booting, board_id, uncalibrated, test_mode, spi, baro, imu, unknown, flying, flash_reinit]
 
 # Adding follows also adds them as expectations
 for previous, next in zip(core_0[:-1], core_0[1:]):
