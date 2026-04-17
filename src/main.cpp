@@ -249,6 +249,9 @@ void setup1() {
   // So the returns are checked (as shown in their example code you can also or all these values and then check ISM6HG256_OK at the end)
   bool imu_init = imu.begin() == ISM6HG256X_OK;
 
+  // Enable high-accuracy ODR mode for IMU
+  imu_init &= imu.Enable_High_Accuracy_Mode() == ISM6HG256X_OK;
+
   // Set the ouput rate
   imu_init &= imu.Set_G_OutputDataRate(GYRO_RATE) == ISM6HG256X_OK;
   imu_init &= imu.Set_X_OutputDataRate(ACC_RATE) == ISM6HG256X_OK;
