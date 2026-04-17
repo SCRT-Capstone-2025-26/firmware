@@ -285,9 +285,6 @@ void setup1() {
   acc_high_g = true;
   acc_fifo_switched = true;
 
-  // TODO: Set up the accelerometer mode currently ISM6HG256X_ACC_HIGH_ACCURACY_ODR_MODE
-  //  just immediatly causes the init to do nothing and return error
-
   if (imu_init) { log_message("IMU inited"); }
   leds[LED_IMU] = imu_init ? LED_POSITIVE : LED_NEGATIVE;
   led_show();
