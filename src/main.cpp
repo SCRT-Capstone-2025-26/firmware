@@ -249,6 +249,9 @@ void setup1() {
   // So the returns are checked (as shown in their example code you can also or all these values and then check ISM6HG256_OK at the end)
   bool imu_init = imu.begin() == ISM6HG256X_OK;
 
+  // Enable high-accuracy ODR mode for IMU
+  imu_init &= imu.Enable_High_Accuracy_Mode() == ISM6HG256X_OK;
+
   // Set the ouput rate
   imu_init &= imu.Set_G_OutputDataRate(GYRO_RATE) == ISM6HG256X_OK;
   imu_init &= imu.Set_X_OutputDataRate(ACC_RATE) == ISM6HG256X_OK;
@@ -281,9 +284,6 @@ void setup1() {
   // Mark that we are in high_g mode
   acc_high_g = true;
   acc_fifo_switched = true;
-
-  // TODO: Set up the accelerometer mode currently ISM6HG256X_ACC_HIGH_ACCURACY_ODR_MODE
-  //  just immediatly causes the init to do nothing and return error
 
   if (imu_init) { log_message("IMU inited"); }
   leds[LED_IMU] = imu_init ? LED_POSITIVE : LED_NEGATIVE;
