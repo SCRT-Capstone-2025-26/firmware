@@ -1,4 +1,5 @@
 .pio/
 
 src/test_data.h
+src/table_data.h
 
