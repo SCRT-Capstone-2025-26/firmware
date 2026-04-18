@@ -84,6 +84,8 @@
 #define USEFUL_FLIGHT_TIME_MS 20 * 1000
 #define FLASH_SAMPLE_RATE     max(USEFUL_FLIGHT_TIME_MS / FLASH_BUF_ELEMS, 1)
 
+#define FIFO_WARNING_SAMPLES 128
+
 enum BaroState {
   IDLE,
   READING_TEMP,
@@ -288,8 +290,8 @@ void setup1() {
   // Allow high readings in the FIFO
   imu_init &= imu.FIFO_Set_HG(true) == ISM6HG256X_OK;
 
-  // Set Set FIFO watermark level
-  imu_init &= imu.FIFO_Set_Watermark_Level(199) == ISM6HG256X_OK;
+  // Set FIFO watermark level
+  imu_init &= imu.FIFO_Set_Watermark_Level(FIFO_WARNING_SAMPLES * 2) == ISM6HG256X_OK;
   // Set FIFO stop on watermark level
   imu_init &= imu.FIFO_Set_Stop_On_Fth(1) == ISM6HG256X_OK;
 
@@ -655,6 +657,10 @@ void sample_imu() {
   if (imu.FIFO_Get_Num_Samples(&samples) != ISM6HG256X_OK) {
     note_error("Sample read failed", IMU_ERR);
     return;
+  }
+
+  if (samples >= FIFO_WARNING_SAMPLES) {
+    note_error("Warning too many fifo samples", DO_NOTHING_ERR);
   }
 
 #ifdef TEST
