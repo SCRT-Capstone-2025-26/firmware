@@ -2,9 +2,8 @@
 
 #include <cmath>
 
-#include "util.h"
 #include "flash.h"
-#include "logging.h"
+#include "table.h"
 
 // NOTE: There is no FPU on the RP2040 so this code could be more of a performance bottleneck that it appears
 // NOTE: These operations use the eigen math library and could be manually optimized in some cases,
@@ -118,8 +117,7 @@ float FlightState::get_servo() {
     return 0.0f;
   }
 
-  // TODO: Lookup table
-  return 0.0f;
+  return index_table(state(0), state(1));
 }
 
 bool FlightState::done() {
