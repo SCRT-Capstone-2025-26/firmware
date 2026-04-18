@@ -6,7 +6,7 @@ import pathlib
 Import('env')
 
 test_id = os.getenv('TEST_ID', None)
-assert test_id is not None, 'No test ID not provided'
+assert test_id is not None, 'TEST_ID enviroment variable not provided'
 # To make sure that this won't cause escaping problems
 assert test_id.isdigit(), 'Test ID contains no digit characters'
 
@@ -16,7 +16,7 @@ env.Append(CPPDEFINES=[
 ])
 
 test_path = os.getenv('TEST_FILE', None)
-assert test_path is not None, 'No test path provided'
+assert test_path is not None, 'TEST_FILE enviroment variable not provided'
 test_path = pathlib.Path(test_path)
 
 # See https://stackoverflow.com/questions/79852343/how-can-i-dynamically-load-and-execute-foo-py-if-it-contains-relative-imports
