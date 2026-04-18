@@ -1,15 +1,22 @@
 import numpy as np
 import pathlib
 
-ext_table = np.load('ext_table.h')
-# (height, vel) so row major
-table = np.load('table.h')
+height_table = np.load('heights.npy')
+ext_table = np.load('exts.npy')
+# (height, vel)
+table = np.load('table.npy')
 
+# Check that height table and extension table are monotonically increasing
+# Which is assumed in the table lookup
+assert np.all(np.diff(height_table) > 0)
+assert np.all(np.diff(ext_table) > 0)
 
-
-# TODO: height start and step should be loaded
-height_start = 0.0
-height_step = 0.0
+# Make sure the arrays are properly sized if they are
+# size < 2 then the binary search fails
+assert len(height_table) >= 2
+assert len(ext_table) >= 2
+assert table.shape[0] == len(height_table)
+assert table.shape[1] == len(ext_table)
 
 with open(pathlib.Path('src', 'table_data.h'), 'w+') as out_file:
     out_file.write(f'''\
@@ -17,12 +24,10 @@ with open(pathlib.Path('src', 'table_data.h'), 'w+') as out_file:
 
 const float TABLE[] = {{{', '.join(table.flatten('C'))}}};
 
-const float ROW_WEIGHTS[] = {{{', '.join(ext_table)}}}
+const float HEIGHTS[] = {{{', '.join(height_table)}}}
+const size_t HEIGHTS_SIZE = {{{len(height_table)}}}
 
-const float TABLE_SIZE = {len(table)};
-const float ROW_SIZE = {len(ext_table)};
-
-const float HEIGHT_START = {height_start};
-const float HEIGHT_STEP = {height_step};
+const float EXTENSIONS[] = {{{', '.join(ext_table)}}}
+const size_t EXTENSIONS_SIZE = {{{len(height_table)}}}
 ''')
 

@@ -3,20 +3,14 @@
 
 #include <cstddef>
 
-// TODO: Give these better names
-
-// The is table is a lookup table for the areobrake extension given the
-//  height and velocity. It takes advantage of the fact that the extension
-//  to velocity is monotonic for constant height. We it only stores an array
-//  of rows index by height where each row contains an array of floats
-//  these floats are the velocities that correspond to a given extension
-//  store in the ROW_WEIGHTS table. So TABLE[height][i] has a velocity
-//  the corresponds to ROW_WEIGHTS[i]. This allows for the table
-//  to be small and still store data. Accessing the table
-//  just interpolates between the two height values and for each of those
-//  interpolates the two closest velocity values.
-
-// ROW_WEIGHTS is (height, vel) so row major
+// The lookup table is "compressed" by having the table
+//  be indexed by (heights, extensions) and is populated
+//  by the velocity at the given height and extension that
+//  will reach the target. So we can index the table by 
+//  height then find the velocity that is closest to our
+//  current velocity and then we know the extension that
+//  will work. The code actually finds the 4 closest
+//  values and interpolates.
 
 // NOTE: If height or velocity is outside the table the code extrapolates linearly from the table edges
 // NOTE: This means it can return an value and should be clamped after indexing
