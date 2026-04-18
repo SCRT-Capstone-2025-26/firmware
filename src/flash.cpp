@@ -18,7 +18,7 @@
 #define CLEAR_SLEEP_MS 2
 
 // TODO: Check is it XIP_BASE
-#define BUF_ADDR (FLASH_SIZE - FS_SIZE - 4096 + XIP_BASE)
+#define BUF_ADDR (FLASH_SIZE - FILESYS_SIZE - 4096 + XIP_BASE)
 
 static_assert(BUF_ADDR % FLASH_SECTOR_SIZE == 0, "Data buffer address must be divisible by FLASH_SECTOR_SIZE");
 // Technically this follows from the first condition
@@ -38,6 +38,10 @@ size_t flash_index = INVALID_FLASH_INDEX;
 // Binary searches the array for the last valid entry
 // TODO: Verify
 bool flash_reinit(FlashState *state) {
+#ifdef NO_FLASH
+  return false;
+#endif
+
   size_t low = -1;
   size_t high = FLASH_BUF_ELEMS;
 
@@ -70,6 +74,10 @@ void _clear_flash_buf(void *addr) {
 }
 
 bool clear_flash_buf() {
+#ifdef NO_FLASH
+  return true;
+#endif
+
   // Check the logging core is ready for a flash write
   if (!flash_ready) {
     return false;
@@ -155,9 +163,10 @@ bool flash_push_state(FlashState &&state) {
   WriteArgs *as = &args;
   if (flash_safe_execute(_flash_write, &args, 0 /*The timeout_ms is not implemented anyway*/) == PICO_OK) {
     flash_index++;
+    return true;
+  } else {
+    return false;
   }
-
-  return true;
 }
 
 // The overriden flash safety functions

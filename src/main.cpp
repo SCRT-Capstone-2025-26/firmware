@@ -15,6 +15,9 @@
 #include "led.h"
 #include "util.h"
 #include "ina745.h"
+#ifdef TEST
+#include "test.h"
+#endif
 
 // NOTE: This code uses millis() extensively and assumes it will not overflow (it will overflow in >40 days and that is not intended usage)
 // TODO: Look into pressure drop when hitting around mach numbers
@@ -53,11 +56,11 @@
 
 // We treat very large or small values as errors to avoid hitting an extreme tail in the kalman filter
 // TODO: Detrmine these
-#define MAX_PRES 10000.0f
-#define MIN_PRES -10000.0f
+#define MAX_PRES 1000000.0f
+#define MIN_PRES -1000000.0f
 
-#define MAX_TEMP 10000.0f
-#define MIN_TEMP -10000.0f
+#define MAX_TEMP 1000000.0f
+#define MIN_TEMP -1000000.0f
 
 // TODO: Add gyro
 #define MAX_ACC_SQR_MAG 10000000.0f
@@ -115,7 +118,7 @@ bool acc_fifo_switched = true;
 
 Millis next_flash_write;
 
-bool flash_write_failed = false;
+bool prev_flash_write_failed = false;
 
 // The pins aren't correctly assigned for hardware SPI on the board
 // I assume it is a mistake (?) so we have to use bit banging
@@ -220,9 +223,26 @@ void setup1() {
 
   // The radio is not currently used (or installed) so we just set the led to mark that (neutral is blue which is visible)
   leds[LED_RADIO] = LED_NEUTRAL;
+
   // Whether or not the watchdog has been triggered
-  leds[LED_WATCHDOG] = watchdog_caused_reboot() ? LED_NEGATIVE : LED_POSITIVE;
+  // watchdog_caused_reboot is actually any reboot
+  bool reboot = watchdog_caused_reboot();
+  leds[LED_WATCHDOG] = reboot ? LED_NEGATIVE : LED_POSITIVE;
   led_show();
+
+#ifdef TEST
+  #warning Board is in TEST mode
+  log_message("Board is in TEST mode");
+
+  // We only want to run tests if the board has been rebooted to stop running
+  //  test immediatly when the board is plugged in to reflash
+  if (!reboot) {
+    // It seems like the LEDs need a bit of time to boot up
+    sleep(1);
+    led_show();
+    while (true) { sleep(1000); }
+  }
+#endif
 
   // Initialize the LED the rp2040 has two SPIs and we init the first one to be able to communicate to the sensors
   softSPI.begin();
@@ -531,6 +551,11 @@ void step_sample_baro() {
           float pres = baro.getPressure();
           float temp = baro.getTemperature();
 
+#ifdef TEST
+          // The temperature will be slightly off using this since they are actually sampled at different times
+          get_baro(&pres, &temp);
+#endif
+
           if (pres < MIN_PRES || pres > MAX_PRES || temp < MIN_TEMP || temp > MAX_TEMP) {
             note_error("Suspicious baro reading", BARO_ERR);
             // This is not critical we just reset the read
@@ -538,8 +563,8 @@ void step_sample_baro() {
             break;
           }
 
-          flight_state.push_baro(baro.getPressure(), baro.getTemperature());
-          write_data(Baro{baro.getPressure(), baro.getTemperature()});
+          flight_state.push_baro(pres, temp);
+          write_data(Baro{pres, temp});
 
           // We now restart the sample (we could use a switch fallthrough here)
           if (baro.startReadRawTemp(&read_duration) != MS5611_READ_OK) {
@@ -632,6 +657,16 @@ void sample_imu() {
     return;
   }
 
+#ifdef TEST
+  // This assumes that both sensors are sampled at the same rate and that only 2 sensors
+  //  are sampling at once. The second can be false for a bit while the sensors are switching
+  static_assert(GYRO_RATE == ACC_RATE);
+  // 1000.0f * 1000.0f / ACC_RATE microseconds per sample from one sensor so half that sense two sensors
+  //  are sampling at once
+  float micros_per_sample = 0.5f * 1000.0f * 1000.0f / ACC_RATE;
+  Micros sample_time = micros();
+#endif
+
   uint8_t tag;
   for (uint16_t i = 0; i < samples; i++) {
     // We could try recovering the read on errors, but I think it is best to just leave the loop
@@ -652,6 +687,10 @@ void sample_imu() {
         gyro_axis.y() = reading_data[1] * GYRO_SENS;
         gyro_axis.z() = reading_data[2] * GYRO_SENS;
         gyro_axis -= GYRO_BIAS;
+
+#ifdef TEST
+        get_gyro(&gyro_axis, sample_time + (Micros)((samples - i + 1) * sample_time));
+#endif
 
         if (board_mode == FLYING) {
           flight_state.push_gyro(gyro_axis);
@@ -678,6 +717,10 @@ void sample_imu() {
         acc_axis.y() = reading_data[1] * ACC_SENS;
         acc_axis.z() = reading_data[2] * ACC_SENS;
         acc_axis -= ACC_BIAS;
+
+#ifdef TEST
+        get_acc(&acc_axis, sample_time + (Micros)((samples - i + 1) * sample_time));
+#endif
 
         sqr_mag = acc_axis.dot(acc_axis);
         if (sqr_mag > MAX_ACC_SQR_MAG) {
@@ -714,6 +757,10 @@ void sample_imu() {
         acc_axis.y() = reading_data[1] * ACC_HIGH_G_SENS;
         acc_axis.z() = reading_data[2] * ACC_HIGH_G_SENS;
         acc_axis -= ACC_HIGH_G_BIAS;
+
+#ifdef TEST
+        get_hg_acc(&acc_axis, sample_time + (Micros)((samples - i + 1) * sample_time));
+#endif
 
         sqr_mag = acc_axis.dot(acc_axis);
         if (sqr_mag > MAX_ACC_SQR_MAG) {
@@ -820,20 +867,39 @@ void loop1() {
   update_mode();
 
   if (board_mode == FLYING && millis_in_mode() >= next_flash_write) {
-    // We limit the amount of flash errors to one to stop spamming the log
-    if (!flash_push_state(flight_state.get_flash()) && !flash_write_failed) {
-      flash_write_failed = true;
-      // If flash fails we don't care
-      // This could be problematic because if there is a reboot and flash worked
-      //  for a bit then stopped we then have the problem that flash holds really old
-      //  data. I don't think this is work addressing because there is no known way to
-      //  write to flash to address it
-      note_error("Flash write failed", DO_NOTHING_ERR);
+    // We limit the amount of flash errors to the log by only logging changes in the state of the flash
+    //  this could still spam the log if it changes rapidly
+    if (!flash_push_state(flight_state.get_flash())) {
+      if (!prev_flash_write_failed) {
+        prev_flash_write_failed = true;
+        // If flash fails we don't care
+        // This could be problematic because if there is a reboot and flash worked
+        //  for a bit then stopped we then have the problem that flash holds really old
+        //  data. I don't think this is work addressing because there is no known way to
+        //  write to flash to address it
+        note_error("Flash write failed (flash could be full)", DO_NOTHING_ERR);
+      }
+    } else {
+      if (prev_flash_write_failed) {
+        prev_flash_write_failed = false;
+        log_message("Flash write succeeded after failure");
+      }
     }
 
     next_flash_write += FLASH_SAMPLE_RATE;
   }
 
+  if (board_mode == FLYING) {
+    write_data(FilterState{flight_state.state(0), flight_state.state(1), flight_state.cov(0, 0), flight_state.cov(1, 1), flight_state.cov(0, 1)});
+    write_data(RotState{flight_state.rot.x(), flight_state.rot.y(), flight_state.rot.z(), flight_state.rot.w()});
+  }
+
   watchdog_update();
+
+#ifdef TEST
+  if (get_reboot()) {
+    watchdog_reboot(0, 0, 0);
+  }
+#endif
 }
 

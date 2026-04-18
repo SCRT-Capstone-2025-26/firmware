@@ -6,6 +6,7 @@
 #include <cstdint>
 
 // NOTE: I think we could use the uinitialized RAM macro for a watchdog reboot
+// NOTE: When flash is disable through NO_FLASH all functions will report working, but flash_reinit
 
 // This may need to be compressed
 struct FlashState {
@@ -30,8 +31,8 @@ struct FlashState {
 // TODO: Use a script to inject these constants into the compilation
 // NOTE: This comes from the filesystem size in platformio.ini if that changes this could cause
 //  nasty problems
-#define FS_SIZE         2097152
-#define BUF_MEM         FS_SIZE
+#define FILESYS_SIZE    2097152
+#define BUF_MEM         FILESYS_SIZE
 // NOTE: This comes from the maximum_size in beavs.json in upload if that changes this could cause
 //  nasty problems
 #define FLASH_SIZE      4194304
@@ -41,7 +42,7 @@ struct FlashState {
 static_assert(BUF_MEM % FLASH_SECTOR_SIZE == 0, "Data buffer must be divisible by FLASH_SECTOR_SIZE");
 // Technically this follows from the first condition
 static_assert(BUF_MEM % FLASH_PAGE_SIZE == 0, "Data buffer must be divisible by FLASH_PAGE_SIZE");
-static_assert(BUF_MEM <= FS_SIZE, "Data buffer must fit in the FS");
+static_assert(BUF_MEM <= FILESYS_SIZE, "Data buffer must fit in the FS");
 
 // Finds where the flash buffer was last updated and inits in the flash
 // index to that. Also returns that last_state or flash if 0

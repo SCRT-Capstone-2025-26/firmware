@@ -14,11 +14,19 @@
 
 // How many ms between a log of the given type at most
 //  to prevent the buffer being flooded
-#define ACC_RATE_LIM  100
-#define GYRO_RATE_LIM 100
-#define BARO_RATE_LIM 100
-#define SERV_RATE_LIM 100
-#define CURR_RATE_LIM 100
+#define ACC_RATE_LIM  50
+#define GYRO_RATE_LIM 50
+#define BARO_RATE_LIM 50
+#define SERV_RATE_LIM 50
+#define CURR_RATE_LIM 50
+#define FILT_RATE_LIM 50
+#define ROT_RATE_LIM  50
+
+// The size of the event buffer
+#define EVENT_BUF_LIMIT 255
+// The amount of the event buffer filled where log messages stop being added
+//  this prevents log spam from stopping data being written in theory
+#define LOG_BUF_LIMIT   (EVENT_BUF_LIMIT / 2)
 
 // This file handles the code that runs on the other core and handles the logging for Beavs
 
@@ -43,6 +51,8 @@ Millis last_gyro = 0;
 Millis last_baro = 0;
 Millis last_serv = 0;
 Millis last_curr = 0;
+Millis last_filt = 0;
+Millis last_rot = 0;
 
 SdFs sd;
 FsFile log_file;
@@ -62,16 +72,19 @@ struct DataEvent {
 
 // This is thread safe to store the events put in the queue
 // Should be big enough for boot events to build up before being cleared
-EventQueue<std::variant<LogEvent, DataEvent>, 128> events;
+EventQueue<std::variant<LogEvent, DataEvent>, EVENT_BUF_LIMIT> events;
 // Is set to time if there is a log and events is full
 // If there are two fails only one is guarranteed to work
-std::atomic_bool event_write_fail;
+std::atomic_bool log_write_fail = false;
+std::atomic_bool data_write_fail = false;
 
 // This can be called from either core and is the main logging functionality
 void log_message(Message &&content) {
-  if (!events.putQ(LogEvent{millis(), get_core_num(), content})) {
+  // We add a custom log limit to prevent the log events from flooding and blocking data events
+  //  since if there are a large number of logs they are probably repeatitive and not interesting
+  if (!events.putQ(LogEvent{millis(), get_core_num(), content}, LOG_BUF_LIMIT)) {
     // If we fail to write then we mark that
-    event_write_fail = true;
+    log_write_fail = true;
   }
 }
 
@@ -82,7 +95,9 @@ void write_data(Data &&data) {
     [](Gyro _) { return std::make_tuple(&last_gyro, GYRO_RATE_LIM); },
     [](Baro _) { return std::make_tuple(&last_baro, BARO_RATE_LIM); },
     [](Servo _) { return std::make_tuple(&last_serv, SERV_RATE_LIM); },
-    [](Current _) { return std::make_tuple(&last_curr, CURR_RATE_LIM); }
+    [](Current _) { return std::make_tuple(&last_curr, CURR_RATE_LIM); },
+    [](FilterState _) { return std::make_tuple(&last_filt, FILT_RATE_LIM); },
+    [](RotState _) { return std::make_tuple(&last_rot, ROT_RATE_LIM); }
   );
 
   // We check this is not being rate limited before writing to the queue
@@ -95,7 +110,7 @@ void write_data(Data &&data) {
 
   if (!events.putQ(DataEvent{curr, data})) {
     // If we fail to write then we mark that
-    event_write_fail = true;
+    data_write_fail = true;
   }
 }
 
@@ -140,8 +155,14 @@ void setup() {
     // Try to create the log files we just search for the first two files with an available name
     //  by incrementing the number in the name
     for (int i = 0; i < INT_MAX; i++) {
+#ifdef TEST
+      String log_path = "Logs/log_test_" TEST_ID "_" + String(i) + ".txt";
+      String data_path = "Data/data_test_" TEST_ID "_" + String(i) + ".bin";
+#else
       String log_path = "Logs/log_" + String(i) + ".txt";
       String data_path = "Data/data_" + String(i) + ".bin";
+#endif
+
       // Check that both are available continue the loop if not
       if (sd.exists(log_path) || sd.exists(data_path)) {
         continue;
@@ -171,7 +192,6 @@ void setup() {
 void write_log(String content) {
   if (!sd_failure) {
     log_file.println(content);
-    log_file.flush();
   }
 
   Serial.println(content);
@@ -200,13 +220,14 @@ void handle_calib(DataEvent data) {
       [](Gyro data) { return std::make_tuple('G', sizeof(data)); },
       [](Baro data) { return std::make_tuple('B', sizeof(data)); },
       [](Servo data) { return std::make_tuple('S', sizeof(data)); },
-      [](Current data) { return std::make_tuple('C', sizeof(data)); }
+      [](Current data) { return std::make_tuple('C', sizeof(data)); },
+      [](FilterState data) { return std::make_tuple('F', sizeof(data)); },
+      [](RotState data) { return std::make_tuple('R', sizeof(data)); }
     );
 
     data_file.write(id);
     data_file.write(&data.timestamp, sizeof(data.timestamp));
     data_file.write(&data.value, size);
-    data_file.flush();
   }
 }
 
@@ -214,19 +235,43 @@ void handle_calib(DataEvent data) {
 void loop() {
   std::variant<LogEvent, DataEvent> event;
 
+  bool events_empty = false;
   while (true) {
-    events.getQ(event, true);
+    // We try a non-blocking read first to see if the queue is empty
+    if (!events.getQ(event, false)) {
+      // If the read fails we know the queue is empty and start a blocking read
+      //  even though the queue may not be empty after the blocking read this is
+      //  good enough
+      events_empty = true;
+
+      events.getQ(event, true);
+    }
 
     // Check if there was an overflow in the event queue
-    if (event_write_fail) {
+    if (log_write_fail) {
       // Set this false first to catch more overflows
-      event_write_fail = false;
+      log_write_fail = false;
 
       write_log("Log buffer full.");
     }
 
+    if (data_write_fail) {
+      // Set this false first to catch more overflows
+      data_write_fail = false;
+
+      write_log("Data buffer full.");
+    }
+
     // I don't know why the lambdas are needed
     match(event, [](LogEvent event) { handle_log_event(event); }, [](DataEvent event) { handle_calib(event); });
+
+    // If the queue was just empty we probably have some extra time to flush the buffers
+    // The queue may not be empty by this point, but it will probably not have much so
+    //  we have some time to flush the buffers
+    if (events_empty) {
+      data_file.flush();
+      log_file.flush();
+    }
   }
 }
 
