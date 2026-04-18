@@ -22,8 +22,5 @@ jobs:
       - name: Install PlatformIO core
         run: pip install --upgrade platformio
 
-      - name: Build firmware (debug)
-        run: pio run -e debug
-
-      - name: Build firmware (release)
-        run: pio run -e release
+      - name: Build firmware (all targets)
+        run: TEST_ID=0 TEST_FILE=analysis/tests/boot_test.py pio run
