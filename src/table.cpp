@@ -20,7 +20,7 @@ float linear_interp(float x, float x0, float x1, float y0, float y1) {
 // The array must be of size greater than two and monotonic
 // Which is checked by the build script
 // This will always return values in bounds
-size_t bin_search(float arr[], float target, size_t size) {
+size_t bin_search(const float arr[], float target, size_t size) {
   size_t low = 0;
   size_t high = size - 1;
 
@@ -59,15 +59,15 @@ float index_table(float height, float velocity) {
   // Now using the rows in the table we find the velocity
   //  they think we should be at and store these indices
   //  which represent indices in the EXTENSIONS array
-  size_t e00 = bin_search(TABLE[th0], velocity, EXTENSIONS_SIZE);
+  size_t e00 = bin_search(&LOOKUP[th0], velocity, EXTENSIONS_SIZE);
   size_t e01 = e00 + 1;
-  size_t e10 = bin_search(TABLE[th1], velocity, EXTENSIONS_SIZE);
+  size_t e10 = bin_search(&LOOKUP[th1], velocity, EXTENSIONS_SIZE);
   size_t e11 = e10 + 1;
 
   // Now we interpolate all four points together first the two extensions at the same height
   // Then across the heights
-  float e0 = linear_interp(velocity, TABLE[th0 + e00], TABLE[th0 + e01], EXTENSIONS[e00], EXTENSIONS[e01]);
-  float e1 = linear_interp(velocity, TABLE[th1 + e10], TABLE[th1 + e11], EXTENSIONS[e10], EXTENSIONS[e11]);
+  float e0 = linear_interp(velocity, LOOKUP[th0 + e00], LOOKUP[th0 + e01], EXTENSIONS[e00], EXTENSIONS[e01]);
+  float e1 = linear_interp(velocity, LOOKUP[th1 + e10], LOOKUP[th1 + e11], EXTENSIONS[e10], EXTENSIONS[e11]);
   return linear_interp(height, HEIGHTS[h0], HEIGHTS[h1], e0, e1);
 }
 
