@@ -60,6 +60,8 @@ check_arr(gyro_data, 3, 'gyro_data')
 baro_data = test_gen.baro_data
 check_arr(baro_data, 2, 'baro_data')
 
+print('Creating test header')
+
 with open(pathlib.Path('src', 'test_data.h'), 'w+') as file:
     file.write(
 f'''\
