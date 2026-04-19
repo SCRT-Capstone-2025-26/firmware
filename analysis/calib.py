@@ -34,7 +34,7 @@ def calib_acc(g, accs, steady_slices):
 
         return error
 
-    return opt.minimize(loss, (1, 1, 1, 0, 0, 0)).x
+    return [float(value) for value in opt.minimize(loss, (1, 1, 1, 0, 0, 0)).x]
 
 
 def calib_gyro(gyros, steady_slices):
@@ -44,13 +44,11 @@ def calib_gyro(gyros, steady_slices):
     gyros = sum(gyro_slices, [])
 
     # Compute the mean which is the bias
-    mean = parse.Gyro(
+    return [
         sum(gyro.x for gyro in gyros) / len(gyros),
         sum(gyro.y for gyro in gyros) / len(gyros),
         sum(gyro.z for gyro in gyros) / len(gyros)
-    )
-
-    return mean
+    ]
 
 
 if __name__ == '__main__':

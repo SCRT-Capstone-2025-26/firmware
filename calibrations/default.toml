@@ -5,7 +5,7 @@ ACC_BIAS = [0, 0, 0]
 ACC_HIGH_G_BIAS = [0, 0, 0]
 GYRO_BIAS = [0, 0, 0]
 
-ACC_SENS = [1, 1, 1]
-ACC_HIGH_G_SENS = [1, 1, 1]
-GYRO_SENS = [1, 1, 1]
+# Just rough values
+ACC_SENS = [0.0175, 0.0175, 0.0175]
+ACC_HIGH_G_SENS = [0.0175, 0.0175, 0.0175]
 

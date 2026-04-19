@@ -32,9 +32,8 @@
 //  the error could be based on time
 
 // 9.80665f is the ISO value of little g
-// The currently value is calibrated
 // TODO: Update these
-#define GRAVITY_ACC       9.782978212113562
+#define GRAVITY_ACC       9.80665f
 // This is low for testing
 // The amount of acc from normal gravity required to consider
 //  it a launch

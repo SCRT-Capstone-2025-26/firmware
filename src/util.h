@@ -80,7 +80,7 @@ enum FailComp {
 #define BARO_ERR_LIM_PER_SECOND 10
 #define IMU_ERR_LIM_PER_SECOND  30
 
-#define GYRO_TO_RADPS     (0.001f * DEG_TO_RAD)
+#define GYRO_TO_RADPS (0.001f * DEG_TO_RAD)
 
 #define WATCHDOG_MS 10
 
