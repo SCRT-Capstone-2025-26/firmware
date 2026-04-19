@@ -45,7 +45,7 @@ public:
 
     // Pop first item from queue.
     bool getQ(T &e, uint32_t timeout_ms) {
-        if (!sem_acquire_timeout_ms(&_count_sem)) {
+        if (!sem_acquire_timeout_ms(&_count_sem, timeout_ms)) {
           return false;
         }
 

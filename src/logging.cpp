@@ -29,7 +29,7 @@
 #define LOG_BUF_LIMIT   (EVENT_BUF_LIMIT / 2)
 
 // This is to feed the Arduino stuff I believe
-//  that runs outside of the loop
+//  that runs outside of the loop. I don't think this is needed
 #define EVENT_TIMEOUT 5
 
 // This file handles the code that runs on the other core and handles the logging for Beavs
@@ -246,7 +246,7 @@ void loop() {
     log_file.flush();
 
     // If we still don't get anything then we return to let the Arduino
-    //  stuff run a bit
+    //  stuff run a bit. I don't think this is needed
     if (!events.getQ(event, EVENT_TIMEOUT)) {
       return;
     }
