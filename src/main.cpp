@@ -223,6 +223,9 @@ void setup1() {
   }
 #endif
 
+  log_message("Build hash: " _BUILD_HASH);
+  log_message("Build timestamp: " _BUILD_TIMESTAMP);
+
   // The radio is not currently used (or installed) so we just set the led to mark that (neutral is blue which is visible)
   leds[LED_RADIO] = LED_NEUTRAL;
 
