@@ -5,10 +5,8 @@ import matplotlib.pyplot as plt
 import math
 
 # NOTE: steady_slices should not overlap
-# TODO: It should calibrate sensitivities for each x, y, and z axis as well as the bias since there
-#  was 1.02g error after bias was accounted for on one of the hg accs
 
-def calib_acc(accs, steady_slices):
+def calib_acc(g, accs, steady_slices):
     # get all the slices in a list
     acc_slices = [accs[a:b] for a, b in steady_slices]
 
@@ -21,23 +19,22 @@ def calib_acc(accs, steady_slices):
 
     # Since the rest accelerometer reading is g + bias we have to seperate them
     # That means there should be a scaler g and bias b such that
-    #  |mean - bias| = g
+    #  |(mean * sens) - bias| = g
     def loss(x):
-        g, bias_x, bias_y, bias_z = x
+        sens_x, sens_y, sens_z, bias_x, bias_y, bias_z = x
 
         error = 0
         for mean in means:
             norm_sq = \
-                (mean.x - bias_x) ** 2 + \
-                (mean.y - bias_y) ** 2 + \
-                (mean.z - bias_z) ** 2
+                ((mean.x * sens_x) - bias_x) ** 2 + \
+                ((mean.y * sens_y) - bias_y) ** 2 + \
+                ((mean.z * sens_z) - bias_z) ** 2
 
             error += (math.sqrt(norm_sq) - g) ** 2
 
         return error
 
-    g, *bias = opt.minimize(loss, (1, 0, 0, 0)).x
-    return float(g), parse.Acc(*(float(bias_entry) for bias_entry in bias))
+    return opt.minimize(loss, (1, 1, 1, 0, 0, 0)).x
 
 
 def calib_gyro(gyros, steady_slices):
@@ -83,9 +80,11 @@ if __name__ == '__main__':
         high = int(input(f'Region {i + 1} end index: '))
         steady_slices.append((low, high))
 
-    g, acc_bias = calib_acc(accs, steady_slices)
+    g = float(input('What is g: '))
+
+    acc_sensbias = calib_acc(g, accs, steady_slices)
     gyro_bias = calib_gyro(gyros, steady_slices)
-    print(f'Little g observed: {g}')
-    print(f'Acc bias {acc_bias}')
+    print(f'Acc sens {acc_sensbias[:3]}')
+    print(f'Acc bias {acc_sensbias[3:]}')
     print(f'Gyro bias {gyro_bias}')
 

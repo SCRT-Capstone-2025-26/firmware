@@ -49,10 +49,6 @@
 #define GYRO_FS       4000
 #define ACC_FS        4
 #define ACC_HIGH_G_FS 64
-// TODO: Maybe tune the senstivities based on calibration
-#define GYRO_SENS       ISM6HG256X_GYRO_SENSITIVITY_FS_4000DPS
-#define ACC_SENS        ISM6HG256X_ACC_SENSITIVITY_FS_4G
-#define ACC_HIGH_G_SENS ISM6HG256X_ACC_SENSITIVITY_FS_64G
 
 // We treat very large or small values as errors to avoid hitting an extreme tail in the kalman filter
 // TODO: Detrmine these
@@ -93,6 +89,10 @@ enum BaroState {
 const Eigen::Vector3f ACC_BIAS(_CALIB_ACC_BIAS_1, _CALIB_ACC_BIAS_2, _CALIB_ACC_BIAS_3);
 const Eigen::Vector3f ACC_HIGH_G_BIAS(_CALIB_ACC_HIGH_G_BIAS_1, _CALIB_ACC_HIGH_G_BIAS_2, _CALIB_ACC_HIGH_G_BIAS_3);
 const Eigen::Vector3f GYRO_BIAS(_CALIB_GYRO_BIAS_1, _CALIB_GYRO_BIAS_2, _CALIB_GYRO_BIAS_3);
+
+const Eigen::Vector3f ACC_SENS(_CALIB_ACC_SENS_1, _CALIB_ACC_SENS_2, _CALIB_ACC_SENS_3);
+const Eigen::Vector3f ACC_HIGH_G_SENS(_CALIB_ACC_HIGH_G_SENS_1, _CALIB_ACC_HIGH_G_SENS_2, _CALIB_ACC_HIGH_G_SENS_3);
+#define GYRO_SENS ISM6HG256X_GYRO_SENSITIVITY_FS_4000DPS
 
 FlightState flight_state = FlightState();
 RestState rest_state = RestState();
@@ -215,6 +215,12 @@ void setup1() {
 #warning NOTE: Using default calibration values (aka this board is uncalibrated)
   log_message("NOTE: Using default calibration values (aka this board is uncalibrated)");
 #else
+#if CALIB_LG
+#error Cannot load calibration when in CALIB_LG mode
+#endif
+#if CALIB_HG
+#error Cannot load calibration when in CALIB_HG mode
+#endif
   if (id64 != _CALIB_ID) {
     note_error("Invalid calibration", FAIL_NOW_ERR);
     return;
@@ -713,9 +719,10 @@ void sample_imu() {
 
         acc_axis_read = true;
 
-        acc_axis.x() = reading_data[0] * ACC_SENS;
-        acc_axis.y() = reading_data[1] * ACC_SENS;
-        acc_axis.z() = reading_data[2] * ACC_SENS;
+        acc_axis.x() = reading_data[0];
+        acc_axis.y() = reading_data[1];
+        acc_axis.z() = reading_data[2];
+        acc_axis.array() *= ACC_SENS.array();
         acc_axis -= ACC_BIAS;
 
 #ifdef TEST
@@ -753,9 +760,10 @@ void sample_imu() {
 
         acc_axis_read = true;
 
-        acc_axis.x() = reading_data[0] * ACC_HIGH_G_SENS;
-        acc_axis.y() = reading_data[1] * ACC_HIGH_G_SENS;
-        acc_axis.z() = reading_data[2] * ACC_HIGH_G_SENS;
+        acc_axis.x() = reading_data[0];
+        acc_axis.y() = reading_data[1];
+        acc_axis.z() = reading_data[2];
+        acc_axis.array() *= ACC_HIGH_G_SENS.array();
         acc_axis -= ACC_HIGH_G_BIAS;
 
 #ifdef TEST

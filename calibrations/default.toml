@@ -4,3 +4,8 @@ IS_DEFAULT = true
 ACC_BIAS = [0, 0, 0]
 ACC_HIGH_G_BIAS = [0, 0, 0]
 GYRO_BIAS = [0, 0, 0]
+
+ACC_SENS = [1, 1, 1]
+ACC_HIGH_G_SENS = [1, 1, 1]
+GYRO_SENS = [1, 1, 1]
+
