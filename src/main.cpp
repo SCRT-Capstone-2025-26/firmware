@@ -262,6 +262,7 @@ void setup1() {
   // This is what the brinup code sets it to so ...
   baro.setSPIspeed(10000000);
   // This sampling will change in the future
+  // TODO: Consider a smaller value for faster response time
   baro.setOversampling(OSR_ULTRA_HIGH);
 
   // The barometer is not sampling right now
