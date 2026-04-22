@@ -2,7 +2,6 @@
 
 #include <cmath>
 
-#include "util.h"
 #include "flash.h"
 #include "logging.h"
 
@@ -15,11 +14,12 @@
 //  version has been implmented yet)
 // NOTE: It is worth considering what parts of this could be fixed point
 
+// NOTE: Pressure is in milibars we plan on converting it
 void FlightState::push_baro(float pressure, float temperature) {
   // Estimate from pressure and temperature
   // This is the formula used by https://github.com/RobTillaart/MS5611
   // TODO: Update this math
-  float height = 44307.694 * (1 - pow(pressure / SEA_LEVEL_PRESURE, 0.190284));
+  float height = 44307.694 * (1 - pow(pressure / 1013.25, 0.190284));
   // Using the state like this is kinda not allowed in a true Kalman filter
   float noise = 1.0f;
 

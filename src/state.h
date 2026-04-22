@@ -57,10 +57,6 @@
 // TODO: Determine value
 #define START_HEIGHT 0.0f
 
-// The value comes from https://github.com/RobTillaart/MS5611
-// TODO: Determine value
-#define SEA_LEVEL_PRESURE (1013.15 * 1e2)
-
 // The errors the rocket starts with
 // The cross error is 0
 // TODO: Determine values

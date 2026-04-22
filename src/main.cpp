@@ -555,6 +555,7 @@ void step_sample_baro() {
         }
 
         if (board_mode == FLYING) {
+          // NOTE: Pressure is in milibars we plan on converting it
           float pres = baro.getPressure();
           float temp = baro.getTemperature();
 
