@@ -3,7 +3,6 @@
 #include <cmath>
 
 #include "flash.h"
-#include "logging.h"
 
 // NOTE: There is no FPU on the RP2040 so this code could be more of a performance bottleneck that it appears
 // NOTE: These operations use the eigen math library and could be manually optimized in some cases,
@@ -16,6 +15,12 @@
 
 // NOTE: Pressure is in milibars we plan on converting it
 void FlightState::push_baro(float pressure, float temperature) {
+  // We ignore the barometer at speeds where the pressure is know to be unreliable
+  //  due to areodynamic stuff around 1 mach
+  if (MIN_BARO_CUTOFF <= state(1) && MAX_BARO_CUTOFF >= state(1)) {
+    return;
+  }
+
   // Estimate from pressure and temperature
   // This is the formula used by https://github.com/RobTillaart/MS5611
   // TODO: Update this math
