@@ -1,11 +1,7 @@
 #include <atomic>
 #include <SdFat.h>
-#include <cstddef>
-#include <cstdint>
 #include <pico/platform.h>
 #include <variant>
-#include <tuple>
-// TODO: Add radio
 
 #include "logging.h"
 #include "eventqueue.h"
@@ -148,7 +144,6 @@ void setup() {
   //  until the files are created and written to
   bool file_inited = false;
   // Check if we can access the sd
-  // TODO: There is probably some errors that are not being checked (like the returns from mkdir)
   if (sd.begin(SdioConfig(SD_CLOCK, SD_CMD, SD_DATA_0))) {
     log_message("SD inited");
 
@@ -158,6 +153,8 @@ void setup() {
 
     // Try to create the log files we just search for the first two files with an available name
     //  by incrementing the number in the name
+    // NOTE: This loop actually takes some time so the SD card should be cleared before flight
+    // TODO: This should be fixed at least for release mode
     for (int i = 0; i < INT_MAX; i++) {
 #ifdef TEST
       String log_path = "Logs/log_test_" TEST_ID "_" + String(i) + ".txt";
@@ -177,6 +174,12 @@ void setup() {
       // Open the files
       log_file = sd.open(log_path, (oflag_t)(O_CREAT | O_WRITE | O_APPEND));
       data_file = sd.open(data_path, (oflag_t)(O_CREAT | O_WRITE | O_APPEND));
+
+      // This means one of the files failed to be opened
+      // We can just keep trying to open different files
+      if (!log_file || !data_path) {
+        continue;
+      }
 
       // We have created log files
       file_inited = true;

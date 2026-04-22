@@ -112,9 +112,9 @@ const Eigen::Vector3f RAIL_VEC(0.0f, std::sin(RAIL_ANGLE), std::cos(RAIL_ANGLE))
 
 struct FlightState {
   Eigen::Quaternionf rot;
-  // The square magnetitude of the accelerometer with the gravity acceleration included
+  // The square magnititude of the accelerometer with the gravity acceleration included
   // This shuts off the BEAVS extension if it is to high to be safe
-  // TODO: Since this is safety critical it should be more reboust looking
+  // NOTE: Safety critical
   float raw_acc_mag_sq;
 
   // 0 is height in world frame, 1 is velocity in rocket frame
