@@ -137,7 +137,7 @@ bool FlightState::done() {
 
   // Since both are unit vectors we can use dot product to compute the cosine between them
   // Hopefully cos gets optimized
-  // TODO: This maybe shouldn't just be an immediate shutoff (although if we calculate 30 deg may be cooked anyway)
+  // NOTE: This maybe shouldn't just be an immediate shutoff (although if we calculate 30 deg may be cooked anyway)
   if (up.dot(rocket_up) < std::cos(30.0f * DEG_TO_RAD)) {
     return true;
   }
@@ -164,7 +164,7 @@ void RestState::push_acc(Eigen::Vector3f acc, bool high_g) {
   //  launch_samples to count the amount we have recieved in a row
   // If not we reset it to 0 since we has seen 0 in a row
   // It probably wouldn't matter to use a norm sqrd, but RestState is not performance sensitive
-  // TODO: Could be better to require some percentage of samples be launch detections
+  // NOTE: Could be better to require some percentage of samples be launch detections
   if (std::abs(acc.norm() - GRAVITY_ACC) >= LAUNCH_ACC) {
     launch_samples++;
   } else {

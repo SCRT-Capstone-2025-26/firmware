@@ -86,7 +86,11 @@ void note_error(String &&message, FailComp failure_comp) {
       break;
   }
 
-  if (baro_errors >= BARO_ERR_LIM_PER_SECOND || imu_errors >= IMU_ERR_LIM_PER_SECOND || failure_comp == FAIL_NOW_ERR) {
+  // If we are DONE we don't go to FAILURE since we don't need to
+  //  and reboot could cause it to detect flight again when it shouldn't
+  if (board_mode != DONE && (baro_errors >= BARO_ERR_LIM_PER_SECOND ||
+                             imu_errors >= IMU_ERR_LIM_PER_SECOND ||
+                             failure_comp == FAIL_NOW_ERR)) {
     push_mode(FAILURE);
   }
 }

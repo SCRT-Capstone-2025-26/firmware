@@ -80,6 +80,8 @@
 #define USEFUL_FLIGHT_TIME_MS 20 * 1000
 #define FLASH_SAMPLE_RATE     max(USEFUL_FLIGHT_TIME_MS / FLASH_BUF_ELEMS, 1)
 
+#define FIFO_WARNING_SAMPLES 96
+
 enum BaroState {
   IDLE,
   READING_TEMP,
@@ -227,6 +229,9 @@ void setup1() {
   }
 #endif
 
+  log_message("Build hash: " _BUILD_HASH);
+  log_message("Build timestamp: " _BUILD_TIMESTAMP);
+
   // The radio is not currently used (or installed) so we just set the led to mark that (neutral is blue which is visible)
   leds[LED_RADIO] = LED_NEUTRAL;
 
@@ -295,8 +300,8 @@ void setup1() {
   // Allow high readings in the FIFO
   imu_init &= imu.FIFO_Set_HG(true) == ISM6HG256X_OK;
 
-  // Set Set FIFO watermark level
-  imu_init &= imu.FIFO_Set_Watermark_Level(199) == ISM6HG256X_OK;
+  // Set FIFO watermark level
+  imu_init &= imu.FIFO_Set_Watermark_Level(FIFO_WARNING_SAMPLES * 2) == ISM6HG256X_OK;
   // Set FIFO stop on watermark level
   imu_init &= imu.FIFO_Set_Stop_On_Fth(1) == ISM6HG256X_OK;
 
@@ -497,7 +502,7 @@ void update_servo() {
   watchdog_update();
 }
 
-// TODO: Check self heating mentioned for similar product in MS5xxx library docs
+// NOTE: Self heating mentioned for similar product in MS5xxx library docs, but doesn't seem to happen
 // NOTE: Currently the barometer library can't fail a transfer because it is SPI this may change though
 void step_sample_baro() {
   // The barometer takes time to complete a read so this holds
@@ -527,7 +532,7 @@ void step_sample_baro() {
       break;
 
     case READING_TEMP:
-      // If we have finished the read we switch to the pressure reading
+      // If we hwave finished the read we switch to the pressure reading
       if (!is_after(baro_read_time, micros())) {
         if (baro.stepReadRawPres(&read_duration) != MS5611_READ_OK) {
           note_error("Baro pres failure", BARO_ERR);
@@ -638,7 +643,9 @@ bool set_acc_mode(bool new_high_g) {
   return true;
 }
 
-// TODO: Maybe account for the accelerometer effects offset from the gyro
+// NOTE: We could account for the accelerometer effects offset from the gyro,
+//  but it doesn't really matter since the rocket isn't rotating much
+//  small high frequency rotations during flight will increase noise though
 // NOTE: We read raw data because not reading raw data reads the senstivity
 //  from the sensor making the FIFO reading twice as slow. We also don't use
 //  the standard senstivity instead using calibrated senstivities
@@ -663,6 +670,10 @@ void sample_imu() {
   if (imu.FIFO_Get_Num_Samples(&samples) != ISM6HG256X_OK) {
     note_error("Sample read failed", IMU_ERR);
     return;
+  }
+
+  if (samples >= FIFO_WARNING_SAMPLES) {
+    note_error("Warning too many fifo samples", DO_NOTHING_ERR);
   }
 
 #ifdef TEST
@@ -842,7 +853,32 @@ void do_failure() {
 #endif
 }
 
-// TODO: We could make the loop schedule in a way that does more barometer readings
+void flash_save() {
+  if (board_mode == FLYING && millis_in_mode() >= next_flash_write) {
+    // We limit the amount of flash errors to the log by only logging changes in the state of the flash
+    //  this could still spam the log if it changes rapidly
+    if (!flash_push_state(flight_state.get_flash())) {
+      if (!prev_flash_write_failed) {
+        prev_flash_write_failed = true;
+        // If flash fails we don't care
+        // This could be problematic because if there is a reboot and flash worked
+        //  for a bit then stopped we then have the problem that flash holds really old
+        //  data. I don't think this is work addressing because there is no known way to
+        //  write to flash to address it
+        note_error("Flash write failed (flash could be full)", DO_NOTHING_ERR);
+      }
+    } else {
+      if (prev_flash_write_failed) {
+        prev_flash_write_failed = false;
+        log_message("Flash write succeeded after failure");
+      }
+    }
+
+    next_flash_write += FLASH_SAMPLE_RATE;
+  }
+}
+
+// NOTE: We could make the loop schedule in a way that does more barometer readings
 //  because we don't really need to run the loop a bunch between barometer readings
 //  so we could just run the loop then wait for the next barometer reading to be
 //  ready (this would mess with the flash write rate if not done well). The
@@ -876,28 +912,8 @@ void loop1() {
   //  doesn't really matter
   update_mode();
 
-  if (board_mode == FLYING && millis_in_mode() >= next_flash_write) {
-    // We limit the amount of flash errors to the log by only logging changes in the state of the flash
-    //  this could still spam the log if it changes rapidly
-    if (!flash_push_state(flight_state.get_flash())) {
-      if (!prev_flash_write_failed) {
-        prev_flash_write_failed = true;
-        // If flash fails we don't care
-        // This could be problematic because if there is a reboot and flash worked
-        //  for a bit then stopped we then have the problem that flash holds really old
-        //  data. I don't think this is work addressing because there is no known way to
-        //  write to flash to address it
-        note_error("Flash write failed (flash could be full)", DO_NOTHING_ERR);
-      }
-    } else {
-      if (prev_flash_write_failed) {
-        prev_flash_write_failed = false;
-        log_message("Flash write succeeded after failure");
-      }
-    }
-
-    next_flash_write += FLASH_SAMPLE_RATE;
-  }
+  // Save to the flash buffer if needed this is not instant, but quite fast
+  flash_save();
 
   if (board_mode == FLYING) {
     write_data(FilterState{flight_state.state(0), flight_state.state(1), flight_state.cov(0, 0), flight_state.cov(1, 1), flight_state.cov(0, 1)});

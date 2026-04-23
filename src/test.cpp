@@ -4,8 +4,6 @@
 
 #include <cstddef>
 
-// TODO: Maybe allow nonlinear index to save space
-
 size_t time_index(Micros time) {
   return min(time / micros_per_step, max_steps - 1);
 }
