@@ -223,6 +223,9 @@ void setup1() {
 #if CALIB_HG
 #error Cannot load calibration when in CALIB_HG mode
 #endif
+#if TEST
+#error Cannot load calibration when in TEST mode
+#endif
   if (id64 != _CALIB_ID) {
     note_error("Invalid calibration", FAIL_NOW_ERR);
     return;

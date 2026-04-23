@@ -1,6 +1,5 @@
 from math import sqrt
 from log_check import LogExpectation, LogChecker
-import parse
 
 # 10,000ft in meters
 apogee = 10000 / 3.28084
@@ -81,6 +80,10 @@ for previous, next in zip(core_1[:-1], core_1[1:]):
 
 # Data and logs are already parsed
 def check_sample(log, data):
+    # Since we can't import when this is run to build test data
+    #  only to validate
+    import parse
+
     for millis, item in data:
         t = millis / 1000
         if isinstance(item, parse.FilterState):
