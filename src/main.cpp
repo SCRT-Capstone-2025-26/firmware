@@ -80,7 +80,7 @@
 #define USEFUL_FLIGHT_TIME_MS 20 * 1000
 #define FLASH_SAMPLE_RATE     max(USEFUL_FLIGHT_TIME_MS / FLASH_BUF_ELEMS, 1)
 
-#define FIFO_WARNING_SAMPLES 96
+#define FIFO_WARNING_SAMPLES 255
 
 enum BaroState {
   IDLE,
@@ -304,7 +304,7 @@ void setup1() {
   imu_init &= imu.FIFO_Set_HG(true) == ISM6HG256X_OK;
 
   // Set FIFO watermark level
-  imu_init &= imu.FIFO_Set_Watermark_Level(FIFO_WARNING_SAMPLES * 2) == ISM6HG256X_OK;
+  imu_init &= imu.FIFO_Set_Watermark_Level(FIFO_WARNING_SAMPLES) == ISM6HG256X_OK;
   // Set FIFO stop on watermark level
   imu_init &= imu.FIFO_Set_Stop_On_Fth(1) == ISM6HG256X_OK;
 
@@ -711,7 +711,7 @@ void sample_imu() {
         gyro_axis -= GYRO_BIAS;
 
 #ifdef TEST
-        get_gyro(&gyro_axis, sample_time + (Micros)((samples - i + 1) * sample_time));
+        get_gyro(&gyro_axis, sample_time + (Micros)((samples - i + 1) * micros_per_sample));
 #endif
 
         if (board_mode == FLYING) {
@@ -742,7 +742,7 @@ void sample_imu() {
         acc_axis -= ACC_BIAS;
 
 #ifdef TEST
-        get_acc(&acc_axis, sample_time + (Micros)((samples - i + 1) * sample_time));
+        get_acc(&acc_axis, sample_time + (Micros)((samples - i + 1) * micros_per_sample));
 #endif
 
         sqr_mag = acc_axis.dot(acc_axis);
@@ -783,7 +783,7 @@ void sample_imu() {
         acc_axis -= ACC_HIGH_G_BIAS;
 
 #ifdef TEST
-        get_hg_acc(&acc_axis, sample_time + (Micros)((samples - i + 1) * sample_time));
+        get_hg_acc(&acc_axis, sample_time + (Micros)((samples - i + 1) * micros_per_sample));
 #endif
 
         sqr_mag = acc_axis.dot(acc_axis);

@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "flash.h"
+#include "logging.h"
 #include "table.h"
 
 // NOTE: There is no FPU on the RP2040 so this code could be more of a performance bottleneck that it appears
@@ -159,13 +160,11 @@ void RestState::push_acc(Eigen::Vector3f acc, bool high_g) {
 
   // If have an acceleration greater than launch acc we mark it by increasing
   //  launch_samples to count the amount we have recieved in a row
-  // If not we reset it to 0 since we has seen 0 in a row
   // It probably wouldn't matter to use a norm sqrd, but RestState is not performance sensitive
-  // NOTE: Could be better to require some percentage of samples be launch detections
+  // Exponential moving average of the boolean values
+  launchiness *= (1.0f - LAUNCH_SAMPLE_DECAY);
   if (std::abs(acc.norm() - GRAVITY_ACC) >= LAUNCH_ACC) {
-    launch_samples++;
-  } else {
-    launch_samples = 0;
+    launchiness += LAUNCH_SAMPLE_DECAY;
   }
 }
 
@@ -175,7 +174,7 @@ void RestState::push_gyro(Eigen::Vector3f gyro) {
 
 bool RestState::try_init_flying(FlightState &state) {
   // If it is not launch time we just return early
-  if (launch_samples < LAUNCH_SAMPLE_REQ) {
+  if (launchiness <= LAUNCH_SAMPLE_REQ) {
     return false;
   }
 
@@ -190,7 +189,7 @@ bool RestState::try_init_flying(FlightState &state) {
 
   Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
 
-    // If there is no calibration readings (which shouldn't happen then we default to the launch rail angle)
+  // If there is no calibration readings (which shouldn't happen then we default to the launch rail angle)
   Eigen::Vector3f acc_vec(0.0f, 0.0f, 0.0f);
   decltype(rot_calib_buf)::index_t rot_samples_size = rot_calib_buf.size();
   if (rot_samples_size > 0) {
@@ -215,6 +214,7 @@ bool RestState::try_init_flying(FlightState &state) {
   state.raw_acc_mag_sq = GRAVITY_ACC * GRAVITY_ACC;
 
   // Simulate the state getting this data
+  // This is quite expensive
   while (!buf.isEmpty()) {
     Measurement meas = buf.shift();
     if (meas.is_acc) {
@@ -233,7 +233,7 @@ bool RestState::try_init_flying(FlightState &state) {
 // This runs in UNKOWN mode and if a flight is detected it means we have just booted
 bool RestState::try_init_flying_boot(FlightState &state) {
   // If it is not launch time we just return early
-  if (launch_samples < LAUNCH_SAMPLE_REQ) {
+  if (launchiness <= LAUNCH_SAMPLE_REQ) {
     return false;
   }
 

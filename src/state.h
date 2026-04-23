@@ -40,7 +40,6 @@
 // 9.80665f is the ISO value of little g
 // TODO: Update these
 #define GRAVITY_ACC       9.80665f
-// This is low for testing
 // The amount of acc from normal gravity required to consider
 //  it a launch
 #define LAUNCH_ACC        2.0f
@@ -51,13 +50,19 @@
 //  the code will have to change
 // This must capture the whole launch so data used in the ROT_HIST_SAMPLES
 //  is not launch data
-#define LAUNCH_HIST_S     2.0f
-// The number of samples that fit the launch criteria
-//  to actually transition to launch this must be smaller than the
-//  history buffer since if it was greater we would lose data
-//  so we use half the buffer size
-// This gives us about 3 detection fails buffer the LAUNCH_HIST_S buffer runs out
-#define LAUNCH_SAMPLE_REQ ((uint32_t)(0.65f * ACC_RATE))
+// This can't be too big or the playback will be too long and we will miss
+//  samples
+#define LAUNCH_HIST_S     0.75f
+// We use an exponential filter on the boolean value of whether
+//  the rocket has launch with the decay. When the value passes
+//  req a launch is detected
+// As ACC_RATE goes to inf if the decay is (1 / ACC_RATE) the
+//  curve looks more and more like e^-x (at 960 is is very like e^-x)
+//  so we can pick a constant that will give the same values
+//  as long as ACC_RATE remains high 1.5 seems good (it will detect flight
+//  after about 0.46s)
+#define LAUNCH_SAMPLE_DECAY (1.5f / ACC_RATE)
+#define LAUNCH_SAMPLE_REQ   0.5f
 // We need to determine the rotation before launch from
 //  some accelerometer data so we put that in the circular buffer as well
 #define ROT_HIST_SAMPLES  ((uint32_t)(0.5f * ACC_RATE))
@@ -117,11 +122,11 @@ const Eigen::Vector3f RAIL_VEC(0.0f, std::sin(RAIL_ANGLE), std::cos(RAIL_ANGLE))
 
 struct FlightState {
   Eigen::Quaternionf rot;
+  float cosZenith;
   // The square magnititude of the accelerometer with the gravity acceleration included
   // This shuts off the BEAVS extension if it is to high to be safe
   // NOTE: Safety critical
   float raw_acc_mag_sq;
-  float cosZenith;
 
   // 0 is height in world frame, 1 is velocity in rocket frame
   Eigen::Vector2f state;
@@ -174,8 +179,10 @@ struct RestState {
   // older than the buf
   CircularBuffer<Eigen::Vector3f, ROT_HIST_SAMPLES> rot_calib_buf;
 
-  // The number of samples in a row that have registered a launch
-  int launch_samples = 0;
+  // A exponential weigth average of the boolean value
+  // of whether a launch acceleration was detected for that
+  // given timestep
+  float launchiness = 0;
 
   RestState() {}
 
