@@ -4,18 +4,20 @@ import pathlib
 # NOTE: This could be modified to only run when needed
 
 heights = np.load('tables/heights.npy')
-angles = np.load('tables/angles.npy')
+# Angles is in radians, but the table is index by cos zenith
+# It is reversed because the cos
+angles = np.cos(np.load('tables/angles.npy'))[::-1]
 exts = np.load('tables/exts.npy')
 # (height, angle, vel)
 lookup = np.load('tables/lookup.npy')
 
 # Check that height array and extension array are monotonically increasing
-# As well as every row in the table is monotonically increasing
 # Which is assumed in the lookup lookup
 assert np.all(np.diff(heights) > 0)
+print(angles)
 assert np.all(np.diff(angles) > 0)
 assert np.all(np.diff(exts) > 0)
-# axis=-1 so diff is correct
+# We also require every row is monotonically increasing as well
 assert np.all(np.diff(lookup) > 0)
 
 # Make sure the arrays are properly sized if they are

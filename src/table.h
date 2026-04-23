@@ -15,6 +15,7 @@
 // NOTE: If height or velocity is outside the table the code extrapolates linearly from the table edges
 // NOTE: This means it can return an value and should be clamped after indexing
 
-float index_table(float height, float velocity);
+// Angle is cos zenith
+float index_table(float height, float angle, float velocity);
 
 #endif

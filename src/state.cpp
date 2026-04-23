@@ -51,11 +51,6 @@ void FlightState::push_acc(Eigen::Vector3f acc, bool is_high_g) {
   // Standard Kalman predict
   // See https://stats.stackexchange.com/questions/134920/kalman-filter-with-input-control-noise for the control noise
 
-  // See the done code for explaination of cosZenith
-  // We could optimize by storing this value and then using it in done
-  Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
-  Eigen::Vector3f rocket_up = rot * LOCAL_UP;
-  float cosZenith = up.dot(rocket_up);
   // cos(zenith) * dt
   trans(0, 1) = cosZenith * (1.0f / ACC_RATE);
   // 1/2 * cos(zenith) * dt^2
@@ -73,6 +68,9 @@ void FlightState::push_gyro(Eigen::Vector3f gyro) {
   // Written like (1.0f / x) to ensure gcc optmizes to a multiply
   rot.coeffs() += 0.5f * (1.0f / GYRO_RATE) * (rot * w).coeffs();
   rot.normalize();
+
+  // This updates cosZenith
+  setRot(rot);
 }
 
 void FlightState::load_flash(FlashState &&flash_state) {
@@ -91,16 +89,22 @@ void FlightState::load_flash(FlashState &&flash_state) {
   // TODO: Check this math see LAUNCH_VEC
   Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
   Eigen::Vector3f flight_vec(0.0f, 1.0f - flash_state.cosZenith, flash_state.cosZenith);
-  rot = Eigen::Quaternionf::FromTwoVectors(flight_vec, up);
+  setRot(Eigen::Quaternionf::FromTwoVectors(flight_vec, up));
+}
+
+// NOTE: The code assumes that this function doesn't read rot
+void FlightState::setRot(Eigen::Quaternionf newRot) {
+  rot = newRot;
+
+  // We know that (0.0f, 0.0f -1.0f is up from the local frame
+  // So transforming our local up to the global frame
+  // So we see if the angle between true up and our local up is more than 30 degrees
+  Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
+  Eigen::Vector3f rocket_up = rot * LOCAL_UP;
+  cosZenith = up.dot(rocket_up);
 }
 
 FlashState FlightState::get_flash() {
-  // See the done code for explaination of cosZenith
-  // We could optimize by storing this value and then using it in done
-  Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
-  Eigen::Vector3f rocket_up = rot * LOCAL_UP;
-  float cosZenith = up.dot(rocket_up);
-
   return FlashState(
     state(0),
     state(1),
@@ -117,21 +121,14 @@ float FlightState::get_servo() {
     return 0.0f;
   }
 
-  return index_table(state(0), state(1));
+  return index_table(state(0), cosZenith, state(1));
 }
 
 bool FlightState::done() {
   // I believe IREC requires no flight controls at 30 degrees
-  // We know that (0.0f, 0.0f -1.0f is up from the local frame
-  // So transforming our local up to the global frame
-  // So we see if the angle between true up and our local up is more than 30 degrees
-  Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
-  Eigen::Vector3f rocket_up = rot * LOCAL_UP;
-
-  // Since both are unit vectors we can use dot product to compute the cosine between them
   // Hopefully cos gets optimized
   // TODO: This maybe shouldn't just be an immediate shutoff (although if we calculate 30 deg may be cooked anyway)
-  if (up.dot(rocket_up) < std::cos(30.0f * DEG_TO_RAD)) {
+  if (cosZenith < std::cos(30.0f * DEG_TO_RAD)) {
     return true;
   }
 
@@ -198,7 +195,7 @@ bool RestState::try_init_flying(FlightState &state) {
   }
 
   // The rotation that takes acc and turns it into down
-  state.rot = Eigen::Quaternionf::FromTwoVectors(acc_vec, up);
+  state.setRot(Eigen::Quaternionf::FromTwoVectors(acc_vec, up));
 
   state.state = Eigen::Vector2f(START_HEIGHT, 0.0f);
   
@@ -235,7 +232,7 @@ bool RestState::try_init_flying_boot(FlightState &state) {
 
   Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
 
-  state.rot = Eigen::Quaternionf::FromTwoVectors(RAIL_VEC, up);
+  state.setRot(Eigen::Quaternionf::FromTwoVectors(RAIL_VEC, up));
   state.state = Eigen::Vector2f(UNK_START_HEIGHT, UNK_START_VEL);
 
   state.cov(0, 0) = UNK_START_H_ERROR;

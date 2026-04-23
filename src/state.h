@@ -116,6 +116,7 @@ struct FlightState {
   // This shuts off the BEAVS extension if it is to high to be safe
   // TODO: Since this is safety critical it should be more reboust looking
   float raw_acc_mag_sq;
+  float cosZenith;
 
   // 0 is height in world frame, 1 is velocity in rocket frame
   Eigen::Vector2f state;
@@ -143,6 +144,8 @@ struct FlightState {
   // When it converts from it adds noise and time associated with a reboot
   void load_flash(FlashState &&flash_state);
   FlashState get_flash();
+
+  void setRot(Eigen::Quaternionf newRot);
 
   float get_servo();
 
