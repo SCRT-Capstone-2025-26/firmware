@@ -28,9 +28,20 @@ test_gen = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(test_gen)
 sys.path.pop()
 
+def check_type(attr, attr_type):
+    assert isinstance(getattr(test_gen, attr), attr_type), f'{attr} must be {attr_type}'
+
+
 def check_attr(attr, attr_type):
     assert hasattr(test_gen, attr), f'No {attr} defined'
-    assert isinstance(getattr(test_gen, attr), attr_type), f'{attr} must be {attr_type}'
+    check_type(attr, attr_type)
+
+
+def check_with_default(attr, attr_type, default):
+    if hasattr(test_gen, attr):
+        check_type(attr, attr_type)
+    else:
+        setattr(test_gen, attr, default)
 
 
 check_attr('max_steps', int)
@@ -42,6 +53,13 @@ check_attr('hg_acc_data', list)
 check_attr('gyro_data', list)
 
 check_attr('baro_data', list)
+
+check_with_default('acc_noise', float, 0.0)
+check_with_default('hg_acc_noise', float, 0.0)
+
+check_with_default('gyro_noise', float, 0.0)
+
+check_with_default('baro_noise', float, 0.0)
 
 def check_arr(arr, entry_size, name):
     assert len(arr) == test_gen.max_steps, f'{name} must have length max_steps'
@@ -83,6 +101,11 @@ const float gyro_z_data[] = {{{', '.join(str(gyro[2]) for gyro in gyro_data)}}};
 const float pres_data[] = {{{', '.join(str(baro[0]) for baro in baro_data)}}};
 const float temp_data[] = {{{', '.join(str(baro[1]) for baro in baro_data)}}};
 
-'''
-    )
+const float acc_noise = {test_gen.acc_noise};
+const float hg_acc_noise = {test_gen.hg_acc_noise};
+
+const float gyro_noise = {test_gen.gyro_noise};
+
+const float baro_noise = {test_gen.baro_noise};
+''')
 

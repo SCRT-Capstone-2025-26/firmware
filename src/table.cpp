@@ -1,19 +1,12 @@
 #include "table.h"
 #include "table_data.h"
 
+#include "util.h"
+
 #include <cstddef>
 #include <sys/types.h>
 
 // See table.h for an explanation of the table
-
-// Creates a line from the x0, x1, y0, y1 and then finds the y for the given x on that line
-float linear_interp(float x, float x0, float x1, float y0, float y1) {
-  float dx = x0 - x1;
-  float dy = y0 - y1;
-
-  float m = dy / dx;
-  return (m * (x - x0)) + y0;
-}
 
 // It is quite possible this is slower than just normal iteration
 // However, it won't matter (and it will be faster on the height table)

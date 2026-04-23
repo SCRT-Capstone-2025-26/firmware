@@ -16,8 +16,9 @@ t_a = v_0 / (2 * g) # also sqrt(apogee / g)
 # Five seconds before the launc starts
 t_0 = 4
 
-# 5ms steps
-micros_per_step = 500
+# 50ms steps
+# Its fine since it interpolates
+micros_per_step = 5000
 # This calculates have many steps of 500 micros it takes to reach 1.2 * t_a + 3
 # There is are 3 seconds before launch
 max_steps = int(((t_a * 1.2) + t_0) / micros_per_step * 1000 * 1000)
@@ -27,6 +28,13 @@ acc_data = [(0.0, 0.0, 0.0)] * max_steps
 hg_acc_data = [(0.0, 0.0, 0.0)] * max_steps
 
 gyro_data = [(0.0, 0.0, 0.0)] * max_steps
+
+acc_noise = 0.75
+hg_acc_noise = 1.5
+
+gyro_noise = 0.01
+
+baro_noise = 5.0
 
 def height(t):
     return (-g * (t ** 2)) + (v_0 * t)
