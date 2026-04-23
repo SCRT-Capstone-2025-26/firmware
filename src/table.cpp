@@ -41,33 +41,51 @@ size_t bin_search(const float arr[], float target, size_t size) {
   return low;
 }
 
-// This could be optimized a bit
-// If the height or velocity is outside this code
-//  will use the two closest indices instead of indices
-//  around so the interpolation continues linearly
-float index_table(float height, float velocity) {
-  // Find the two height indices that our height is between
-  size_t h0 = bin_search(HEIGHTS, height, HEIGHTS_SIZE);
-  size_t h1 = h0 + 1;
+// Index the table by heigth and angle this give the start
+//  of a continous row of velocities mapped to the extensions
+size_t index_row(size_t height, size_t angle) {
+  return ((height * ANGLES_SIZE) + angle) * EXTENSIONS_SIZE;
+}
 
-  // Since the table is HEIGHTS_SIZE rows of EXTENSIONS_SIZE
-  // We want to index the row representing the given height
-  //  which is what these index
-  size_t th0 = h0 * EXTENSIONS_SIZE;
-  size_t th1 = h1 * EXTENSIONS_SIZE;
+// Given the index of a row this returns the extension for the given
+//  velocity on that row
+// This will linearly extend if the velocity is out of bounds
+float search_vel(size_t row_index, float velocity) {
+  // Find the extension indices
+  size_t vi0 = bin_search(&LOOKUP[row_index], velocity, EXTENSIONS_SIZE);
+  size_t vi1 = vi0 + 1;
 
-  // Now using the rows in the table we find the velocity
-  //  they think we should be at and store these indices
-  //  which represent indices in the EXTENSIONS array
-  size_t e00 = bin_search(&LOOKUP[th0], velocity, EXTENSIONS_SIZE);
-  size_t e01 = e00 + 1;
-  size_t e10 = bin_search(&LOOKUP[th1], velocity, EXTENSIONS_SIZE);
-  size_t e11 = e10 + 1;
+  // Interpolate between the indices the value is between
+  // NOTE: This assumes there is are no velocities on the row with the same values for different indices
+  //  this is check in the table_gen.py
+  return linear_interp(velocity, LOOKUP[row_index + vi0], LOOKUP[row_index + vi1], EXTENSIONS[vi0], EXTENSIONS[vi1]);
+}
 
-  // Now we interpolate all four points together first the two extensions at the same height
-  // Then across the heights
-  float e0 = linear_interp(velocity, LOOKUP[th0 + e00], LOOKUP[th0 + e01], EXTENSIONS[e00], EXTENSIONS[e01]);
-  float e1 = linear_interp(velocity, LOOKUP[th1 + e10], LOOKUP[th1 + e11], EXTENSIONS[e10], EXTENSIONS[e11]);
-  return linear_interp(height, HEIGHTS[h0], HEIGHTS[h1], e0, e1);
+// This finds the extension for a give height, angle, and velocity
+//  in the table interpolating all those values
+// The amount of interpolations makes this somewhat expensive
+// This will linearly extend if any of the values is out of bounds
+//  for the lookup
+float index_table(float height, float angle, float velocity) {
+  // Finds the height indices closest
+  size_t hi0 = bin_search(HEIGHTS, height, HEIGHTS_SIZE);
+  size_t hi1 = hi0 + 1;
+
+  // Finds the angle indices closest
+  size_t ai0 = bin_search(ANGLES, angle, ANGLES_SIZE);
+  size_t ai1 = ai0 + 1;
+
+  // Finds the extension corresponding to all 4 closest points
+  float e00 = search_vel(index_row(hi0, ai0), velocity);
+  float e10 = search_vel(index_row(hi1, ai0), velocity);
+  float e01 = search_vel(index_row(hi0, ai1), velocity);
+  float e11 = search_vel(index_row(hi1, ai1), velocity);
+
+  // Interpolates between the four first interpolating the heights then angle
+  // NOTE: This assumes there is are no heights or angles that are the same for different indices
+  //  this is check in the table_gen.py
+  float e0 = linear_interp(height, HEIGHTS[hi0], HEIGHTS[hi1], e00, e10);
+  float e1 = linear_interp(height, HEIGHTS[hi0], HEIGHTS[hi1], e01, e11);
+  return linear_interp(angle, ANGLES[ai0], ANGLES[ai1], e0, e1);
 }
 
