@@ -150,7 +150,7 @@ struct FlightState {
   void load_flash(FlashState &&flash_state);
   FlashState get_flash();
 
-  void setRot(Eigen::Quaternionf newRot);
+  void set_rot(Eigen::Quaternionf newRot);
 
   float get_servo();
 

@@ -77,7 +77,7 @@ void FlightState::push_gyro(Eigen::Vector3f gyro) {
   rot.normalize();
 
   // This updates cosZenith
-  setRot(rot);
+  set_rot(rot);
 }
 
 void FlightState::load_flash(FlashState &&flash_state) {
@@ -96,11 +96,11 @@ void FlightState::load_flash(FlashState &&flash_state) {
   // TODO: Check this math see LAUNCH_VEC
   Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
   Eigen::Vector3f flight_vec(0.0f, 1.0f - flash_state.cosZenith, flash_state.cosZenith);
-  setRot(Eigen::Quaternionf::FromTwoVectors(flight_vec, up));
+  set_rot(Eigen::Quaternionf::FromTwoVectors(flight_vec, up));
 }
 
 // NOTE: The code assumes that this function doesn't read rot
-void FlightState::setRot(Eigen::Quaternionf newRot) {
+void FlightState::set_rot(Eigen::Quaternionf newRot) {
   rot = newRot;
 
   // We know that (0.0f, 0.0f -1.0f is up from the local frame
@@ -202,7 +202,7 @@ bool RestState::try_init_flying(FlightState &state) {
   }
 
   // The rotation that takes acc and turns it into down
-  state.setRot(Eigen::Quaternionf::FromTwoVectors(acc_vec, up));
+  state.set_rot(Eigen::Quaternionf::FromTwoVectors(acc_vec, up));
 
   state.state = Eigen::Vector2f(START_HEIGHT, 0.0f);
   
@@ -239,7 +239,7 @@ bool RestState::try_init_flying_boot(FlightState &state) {
 
   Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
 
-  state.setRot(Eigen::Quaternionf::FromTwoVectors(RAIL_VEC, up));
+  state.set_rot(Eigen::Quaternionf::FromTwoVectors(RAIL_VEC, up));
   state.state = Eigen::Vector2f(UNK_START_HEIGHT, UNK_START_VEL);
 
   state.cov(0, 0) = UNK_START_H_ERROR;
