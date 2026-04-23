@@ -1,6 +1,7 @@
 import struct
 from collections import namedtuple
 import argparse
+from matplotlib import pyplot as plt
 
 Acc = namedtuple('Acc', ('x', 'y', 'z'))
 Gyro = namedtuple('Gyro', ('x', 'y', 'z'))
@@ -71,11 +72,22 @@ def read_logs(file):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("path")
+    parser.add_argument('path')
     args = parser.parse_args()
 
     with open(args.path, 'rb') as file:
-        for item in read_all(file):
-            print(item)
+        items = read_all(file)
 
+    for typ in [Acc, Gyro, Baro, Servo, Current, FilterState, RotState]:
+        typ_items = [(time, datum) for (time, datum) in items if isinstance(datum, typ)]
+        if len(typ_items) == 0:
+            continue
+
+        # The tuple(zip(*)) causes a transpose
+        times, data = tuple(zip(*typ_items))
+        plt.plot(times, data, label=typ._fields)
+        plt.title(typ.__name__)
+        plt.legend()
+        plt.xlabel('ms')
+        plt.show()
 
