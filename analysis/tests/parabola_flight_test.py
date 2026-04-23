@@ -3,7 +3,7 @@ from log_check import LogExpectation, LogChecker
 
 # 10,000ft in meters
 apogee = 10000 / 3.28084
-g = 9.81
+g = 9.80665
 # y = -gt^2 + v_0t
 # apogee = -gt_a^2 + v_0t_a
 # t_a = v_0 / 2g since the vertex is minus b over 2 a
@@ -13,12 +13,16 @@ g = 9.81
 v_0 = 2 * sqrt(apogee * g)
 t_a = v_0 / (2 * g) # also sqrt(apogee / g)
 
+# Five seconds before the launc starts
+t_0 = 4
+
 # 5ms steps
 micros_per_step = 500
-# This calculates have many steps of 500 micros it takes to reach 1.2 * t_a
-max_steps = int(t_a * 1.2 / micros_per_step * 1000 * 1000)
+# This calculates have many steps of 500 micros it takes to reach 1.2 * t_a + 3
+# There is are 3 seconds before launch
+max_steps = int(((t_a * 1.2) + t_0) / micros_per_step * 1000 * 1000)
 
-# It is somewhat counterintuitive, but we are in free fall
+# It is somewhat counterintuitive, but we are in free fall for most of the flight
 acc_data = [(0.0, 0.0, 0.0)] * max_steps
 hg_acc_data = [(0.0, 0.0, 0.0)] * max_steps
 
@@ -31,15 +35,22 @@ def height(t):
 # This is the formula used by https://github.com/RobTillaart/MS5611
 # 44307.694 * (1 - pow(pressure / SEA_LEVEL_PRESURE, 0.190284))
 def h_to_pres(height):
-    sea_level_pressure = 1013.15 * 1e2
-    return sea_level_pressure * ((1 - (height / 44307.694)) ** (1 / 0.190284))
+    return 1013.5 * ((1 - (height / 44307.694)) ** (1 / 0.190284))
 
 
 baro_data = []
 for i in range(max_steps):
-    # Time in seconds
-    t = i * micros_per_step / 1000 / 1000
-    baro_data.append((h_to_pres(height(t)), 0.0))
+    # Time in seconds 0 being launch
+    t = (i * micros_per_step / 1000 / 1000) - t_0
+    # Five seconds of pre launch
+    if t <= 0.0:
+        # Z is up and it is counterintuitive, but resting on the ground
+        #  is actually moving up at g
+        acc_data[i] = (0.0, 0.0, g)
+        hg_acc_data[i] = (0.0, 0.0, g)
+        baro_data.append((h_to_pres(0.0), 0.0))
+    else:
+        baro_data.append((h_to_pres(height(t)), 0.0))
 
 checker = LogChecker()
 
