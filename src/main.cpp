@@ -52,14 +52,14 @@
 
 // We treat very large or small values as errors to avoid hitting an extreme tail in the kalman filter
 // TODO: Detrmine these
-#define MAX_PRES 1000000.0f
-#define MIN_PRES -1000000.0f
+#define MAX_PRES 3000.0f
+#define MIN_PRES 0.0f
 
-#define MAX_TEMP 1000000.0f
-#define MIN_TEMP -1000000.0f
+#define MAX_TEMP 100.0f
+#define MIN_TEMP -100.0f
 
 // TODO: Add gyro
-#define MAX_ACC_SQR_MAG 10000000.0f
+#define MAX_ACC_SQR_MAG 1000000.0f
 
 // The value where the acc switch froms low g to high g
 // Currently ACC_FS * GRAVITY_ACC is roughly the max acc reading (the datasheet is in Gs)

@@ -132,7 +132,7 @@ const Eigen::Vector3f RAIL_VEC(0.0f, std::sin(RAIL_ANGLE), std::cos(RAIL_ANGLE))
 
 struct FlightState {
   Eigen::Quaternionf rot;
-  float cosZenith;
+  float cos_zenith;
   // The square magnititude of the accelerometer with the gravity acceleration included
   // This shuts off the BEAVS extension if it is to high to be safe
   // NOTE: Safety critical
@@ -165,7 +165,7 @@ struct FlightState {
   void load_flash(FlashState &&flash_state);
   FlashState get_flash();
 
-  void set_rot(Eigen::Quaternionf newRot);
+  void set_rot(Eigen::Quaternionf new_rot);
 
   float get_servo();
 
