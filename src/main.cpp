@@ -38,10 +38,10 @@
 //  This formula assumes a sample every second the real formula does not
 // To prevent jittery servo
 // TODO: Determine
-#define SERVO_SMOOTH 0.99
+#define SERVO_SMOOTH 0.5
 // Get servo smooth into more favourable units
 // This should be compile time const
-#define SERVO_SMOOTH_LN_MS std::log(SERVO_SMOOTH * 0.001f)
+#define SERVO_SMOOTH_LN_MS (std::log(SERVO_SMOOTH) * 0.001f)
 
 // NOTE: The FS and senstivities are linked, but because the library is strange we have to include
 //  them twice
@@ -82,6 +82,9 @@
 
 #define FIFO_WARNING_SAMPLES 255
 
+// TODO: Determine
+#define MAX_CURRENT 1000000
+
 enum BaroState {
   IDLE,
   READING_TEMP,
@@ -107,7 +110,6 @@ Micros baro_read_time;
 BaroState baro_state = IDLE;
 
 INA745 current_sensor = INA745(CURRENT_1_ID, &Wire);
-bool current_sens_failed = false;
 
 // The mode of the accelerometer
 // We stay in high g mode and only switch to low g after launch
@@ -235,9 +237,6 @@ void setup1() {
   log_message("Build hash: " _BUILD_HASH);
   log_message("Build timestamp: " _BUILD_TIMESTAMP);
 
-  // The radio is not currently used (or installed) so we just set the led to mark that (neutral is blue which is visible)
-  leds[LED_RADIO] = LED_NEUTRAL;
-
   // Whether or not the watchdog has been triggered
   // watchdog_caused_reboot is actually any reboot
   bool reboot = watchdog_caused_reboot();
@@ -329,12 +328,17 @@ void setup1() {
   Wire.setSCL(SCL);
   Wire.setClock(100000);
   Wire.begin();
+
+
+  bool current_sens_failed = false;
   if (current_sensor.begin() != INA_SUCCESS) {
     log_message("Current sensor init failed");
     current_sens_failed = true;
   }
 
-  if (baro_init && imu_init) {
+  leds[LED_CURRENT] = current_sens_failed ? LED_NEGATIVE : LED_POSITIVE;
+
+  if (baro_init && imu_init && !current_sens_failed) {
     // The board is now ready
     // If the arm switch is active we could be booting in flight
     //  and so should be in UNKNOWN until we know otherwise we can
@@ -451,7 +455,7 @@ void update_mode() {
   watchdog_update();
 }
 
-void update_servo() {
+void update_servo(int32_t current_milliamps) {
   if (!servo_powered) {
     if (try_power_servo()) {
       log_message("Servo powered");
@@ -468,13 +472,9 @@ void update_servo() {
 
   float servo_percent = 0.0f;
   if (board_mode == FLYING) {
-    // FlightState shouldn't output beavs more than 0.0f if it is dangerous,
-    //  but this provides fallback security in case
-    // if (acc_high_g) {
-    //   servo_percent = 0.0f;
-    // } else {
-    servo_percent = flight_state.get_servo();
-    // }
+    // We clamp the servo because the lookup table internpolates huge values
+    //  especially at the end this stosp the filter from being overpowered
+    servo_percent = max(min(flight_state.get_servo(), 1.0f), 0.0f);
 
     // This interpolates between the two servo values based on the time
     //  elapsed it is has a pretty heavy duty math, but we can afford it
@@ -483,8 +483,8 @@ void update_servo() {
     flight_servo_last_ms = time;
 
     float interp = std::exp(SERVO_SMOOTH_LN_MS * dt);
-    // flight_servo_percent = (flight_servo_percent * interp) + (servo_percent * (1.0f - interp));
-    // servo_percent = flight_servo_percent;
+    flight_servo_percent = (flight_servo_percent * interp) + (servo_percent * (1.0f - interp));
+    servo_percent = flight_servo_percent;
   } else if (board_mode == UNARMED) {
     // Just a generic parabola (maxed with 0) to generate the full range of motion over a few seconds
     // It is 0 at 1500 and 4500 millis and peaks at 1 since it is 0 at 1500 millis that gives
@@ -493,9 +493,15 @@ void update_servo() {
     // The (1.0f / x) is for optimization
     float time = millis_in_mode() * 0.001f;
     servo_percent = -(time - 1.5f) * (time - 4.5f) * (1.0f / 2.25f);
+    servo_percent = max(min(servo_percent, 1.0f), 0.0f);
   }
 
-  float duty_percent = (max(min(servo_percent, 1.0f), 0.0f) * (SERVO_DUTY_MAX - SERVO_DUTY_MIN)) + SERVO_DUTY_MIN;
+  // TODO: Maybe rolling average
+  if (current_milliamps > MAX_CURRENT) {
+    servo_percent = 0;
+  }
+
+  float duty_percent = (servo_percent * (SERVO_DUTY_MAX - SERVO_DUTY_MIN)) + SERVO_DUTY_MIN;
   // This does only returns false configuration errors so we just fail if this returns false
   if (!servo.setPWM(SERVO_1, SERVO_FREQ, duty_percent * 100.0f)) {
     note_error("PWM config error", FAIL_NOW_ERR);
@@ -829,11 +835,8 @@ void sample_imu() {
   }
 }
 
-void sample_current() {
-  if (current_sens_failed) {
-    return;
-  }
-
+int32_t sample_current() {
+  // Read always returns INA_SUCCESS
   current_sensor.read();
 
   write_data(Current{
@@ -842,6 +845,8 @@ void sample_current() {
     current_sensor.current_milliamps(),
     current_sensor.power_microwatts()
   });
+
+  return current_sensor.current_milliamps();
 }
 
 // This handles what the board should do when it has reached a critical failure
@@ -905,10 +910,11 @@ void loop1() {
   step_sample_baro();
   // This is current only used for logging, but may be used to increase boot speed in UNKNOWN mode,
   //  by sensing a safe time to activate the servo
-  sample_current();
+  int32_t current = sample_current();
 
   // Update the servo based on the state object
-  update_servo();
+  // Current can disable servo if too high
+  update_servo(current);
 
   // This is slow from UNKNOWN to UNARMED
   //  however we don't care since it is on the ground flight

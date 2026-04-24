@@ -27,7 +27,7 @@ void FlightState::push_baro(float pressure, float temperature) {
   // TODO: Update this math
   float height = 44307.694 * (1 - pow(pressure / 1013.25, 0.190284));
   // Using the state like this is kinda not allowed in a true Kalman filter
-  float noise = 3.0f;
+  float noise = 50.0f;
 
   // Standard Kalman update
 
@@ -48,7 +48,7 @@ void FlightState::push_acc(Eigen::Vector3f acc, bool is_high_g) {
   // Forward acc determines if beavs can extend
   forward_acc = acc.dot(LOCAL_UP);
   // TODO: Determine
-  float noise = 2.0f;
+  float noise = 20.0f;
 
   // Since this is called regularly with a frequency of ACC_RATE we update the
   //  state and use acc as a control input

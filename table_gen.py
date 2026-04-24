@@ -31,6 +31,8 @@ assert lookup.shape[0] == len(heights)
 assert lookup.shape[1] == len(angles)
 assert lookup.shape[2] == len(exts)
 
+print(heights, exts, angles)
+print(lookup[4, 6])
 
 # Convert array to C array hex floats are used to maintain precision
 def arr_to_cont(arr):
