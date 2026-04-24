@@ -3,7 +3,6 @@
 #include <cmath>
 
 #include "flash.h"
-#include "logging.h"
 #include "table.h"
 
 // NOTE: There is no FPU on the RP2040 so this code could be more of a performance bottleneck that it appears

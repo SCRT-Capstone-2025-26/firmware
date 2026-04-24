@@ -15,6 +15,11 @@ t_a = v_0 / (2 * g) # also sqrt(apogee / g)
 
 # Five seconds before the launc starts
 t_0 = 4
+# Burn out happens a second later
+t_b = 1
+# We need the thrust that will get us to end in parabola defined above
+#  this is a rough estimate
+burn_acc = v_0 / t_b
 
 # 50ms steps
 # Its fine since it interpolates
@@ -57,6 +62,11 @@ for i in range(max_steps):
         acc_data[i] = (0.0, 0.0, g)
         hg_acc_data[i] = (0.0, 0.0, g)
         baro_data.append((h_to_pres(0.0), 0.0))
+    elif t <= t_b:
+        # Just roughly simulate accelerating up to v_0 over t_b
+        acc_data[i] = (0.0, 0.0, burn_acc - g)
+        hg_acc_data[i] = (0.0, 0.0, burn_acc - g)
+        baro_data.append((h_to_pres(height(t)), 0.0))
     else:
         baro_data.append((h_to_pres(height(t)), 0.0))
 
