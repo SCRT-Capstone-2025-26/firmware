@@ -21,7 +21,7 @@ t_b = 1
 #  this is a rough estimate
 burn_acc = v_0 / t_b
 
-# 50ms steps
+# 500ms steps
 # Its fine since it interpolates
 micros_per_step = 5000
 # This calculates have many steps of 500 micros it takes to reach 1.2 * t_a + 3
@@ -114,7 +114,10 @@ def check_sample(log, data):
     import parse
 
     for millis, item in data:
-        t = millis / 1000
+        t = (millis / 1000) - t_0
+        if t < 0.0:
+            continue
+
         if isinstance(item, parse.FilterState):
             y = height(t)
             error = abs(item.h - y)

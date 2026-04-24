@@ -1,4 +1,5 @@
 #include "table.h"
+#include "logging.h"
 #include "table_data.h"
 
 #include "util.h"
@@ -59,6 +60,7 @@ float search_vel(size_t row_index, float velocity) {
 // The amount of interpolations makes this somewhat expensive
 // This will linearly extend if any of the values is out of bounds
 //  for the lookup
+// This is fairly expensive to eval
 float index_table(float height, float angle, float velocity) {
   // Finds the height indices closest
   size_t hi0 = bin_search(HEIGHTS, height, HEIGHTS_SIZE);

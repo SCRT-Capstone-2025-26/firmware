@@ -9,15 +9,16 @@ heights = np.load('tables/heights.npy')
 angles = np.cos(np.load('tables/angles.npy'))[::-1]
 exts = np.load('tables/exts.npy')
 # (height, angle, vel)
-lookup = np.load('tables/lookup.npy')
+# Reverse to match the angle
+lookup = np.load('tables/lookup.npy')[:, ::-1]
 
 # Check that height array and extension array are monotonically increasing
 # Which is assumed in the lookup lookup
 assert np.all(np.diff(heights) > 0)
-print(angles)
 assert np.all(np.diff(angles) > 0)
 assert np.all(np.diff(exts) > 0)
 # We also require every row is monotonically increasing as well
+# Outdated for now
 assert np.all(np.diff(lookup) > 0)
 
 # Make sure the arrays are properly sized if they are
