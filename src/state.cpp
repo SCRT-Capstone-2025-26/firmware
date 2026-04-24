@@ -58,9 +58,9 @@ void FlightState::push_acc(Eigen::Vector3f acc, bool is_high_g) {
   // See https://stats.stackexchange.com/questions/134920/kalman-filter-with-input-control-noise for the control noise
 
   // cos(zenith) * dt
-  trans(0, 1) = cosZenith * (1.0f / ACC_RATE);
+  trans(0, 1) = cos_zenith * (1.0f / ACC_RATE);
   // 1/2 * cos(zenith) * dt^2
-  control(0) = 0.5f * cosZenith * (1.0f / ACC_RATE) * (1.0f / ACC_RATE);
+  control(0) = 0.5f * cos_zenith * (1.0f / ACC_RATE) * (1.0f / ACC_RATE);
 
   state = (trans * state) + (control * forward_acc);
   // See https://stats.stackexchange.com/questions/134920/kalman-filter-with-input-control-noise for the control noise
@@ -75,7 +75,7 @@ void FlightState::push_gyro(Eigen::Vector3f gyro) {
   rot.coeffs() += 0.5f * (1.0f / GYRO_RATE) * (rot * w).coeffs();
   rot.normalize();
 
-  // This updates cosZenith
+  // This updates cos_zenith
   set_rot(rot);
 }
 
@@ -89,25 +89,25 @@ void FlightState::load_flash(FlashState &&flash_state) {
   cov(0, 1) = flash_state.hv_cov;
   cov(1, 1) = flash_state.v_cov;
 
-  // Since one axis is arbitrary we can just pick a vector such that its cos(angle) from vertical is cosZenith
+  // Since one axis is arbitrary we can just pick a vector such that its cos(angle) from vertical is cos_zenith
   // This is based on LOCAL_UP (this init should be changed to be dependent on LOCAL_UP)
   // NOTE: This depends on LOCAL_UP in state.h
   // TODO: Check this math see LAUNCH_VEC
   Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
-  Eigen::Vector3f flight_vec(0.0f, 1.0f - flash_state.cosZenith, flash_state.cosZenith);
+  Eigen::Vector3f flight_vec(0.0f, 1.0f - flash_state.cos_zenith, flash_state.cos_zenith);
   set_rot(Eigen::Quaternionf::FromTwoVectors(flight_vec, up));
 }
 
 // NOTE: The code assumes that this function doesn't read rot
-void FlightState::set_rot(Eigen::Quaternionf newRot) {
-  rot = newRot;
+void FlightState::set_rot(Eigen::Quaternionf new_rot) {
+  rot = new_rot;
 
   // We know that (0.0f, 0.0f -1.0f is up from the local frame
   // So transforming our local up to the global frame
   // So we see if the angle between true up and our local up is more than 30 degrees
   Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
   Eigen::Vector3f rocket_up = rot * LOCAL_UP;
-  cosZenith = up.dot(rocket_up);
+  cos_zenith = up.dot(rocket_up);
 }
 
 FlashState FlightState::get_flash() {
@@ -117,7 +117,7 @@ FlashState FlightState::get_flash() {
     cov(0, 0),
     cov(1, 0), // Since the covariance is symmetric we only need one
     cov(1, 1),
-    cosZenith
+    cos_zenith
   );
 }
 
@@ -128,14 +128,14 @@ float FlightState::get_servo() {
     return 0.0f;
   }
 
-  return index_table(state(0), cosZenith, state(1)) * SERVO_MM_TO_PERCENT;
+  return index_table(state(0), cos_zenith, state(1)) * SERVO_MM_TO_PERCENT;
 }
 
 bool FlightState::done() {
   // I believe IREC requires no flight controls at 30 degrees
   // Hopefully cos gets optimized
   // NOTE: This maybe shouldn't just be an immediate shutoff (although if we calculate 30 deg may be cooked anyway)
-  if (cosZenith < std::cos(30.0f * DEG_TO_RAD)) {
+  if (cos_zenith < std::cos(30.0f * DEG_TO_RAD)) {
     return true;
   }
 
