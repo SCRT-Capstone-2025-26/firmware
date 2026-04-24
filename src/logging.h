@@ -27,6 +27,7 @@ struct __attribute__((packed)) Acc {
   float x;
   float y;
   float z;
+  bool hg;
 };
 
 struct __attribute__((packed)) Gyro {

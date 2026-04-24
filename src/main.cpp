@@ -12,7 +12,6 @@
 #include "state.h"
 #include "logging.h"
 #include "led.h"
-#include "table.h"
 #include "util.h"
 #include "ina745.h"
 #ifdef TEST
@@ -39,7 +38,7 @@
 //  This formula assumes a sample every second the real formula does not
 // To prevent jittery servo
 // TODO: Determine
-#define SERVO_SMOOTH 0.01
+#define SERVO_SMOOTH 0.99
 // Get servo smooth into more favourable units
 // This should be compile time const
 #define SERVO_SMOOTH_LN_MS std::log(SERVO_SMOOTH * 0.001f)
@@ -63,7 +62,7 @@
 #define MAX_ACC_SQR_MAG 10000000.0f
 
 // The value where the acc switch froms low g to high g
-// Currently ACC_FS * GRAVITY_ACC is roughly the max acc reading
+// Currently ACC_FS * GRAVITY_ACC is roughly the max acc reading (the datasheet is in Gs)
 //  of the low so when 80% of that is reached it switches
 // TODO: Determine value
 #define ACC_HIGH_G_SWITCH (ACC_FS * GRAVITY_ACC * 0.8f)
@@ -471,20 +470,21 @@ void update_servo() {
   if (board_mode == FLYING) {
     // FlightState shouldn't output beavs more than 0.0f if it is dangerous,
     //  but this provides fallback security in case
-    if (acc_high_g) {
-      servo_percent = 0.0f;
-    } else {
-      servo_percent = flight_state.get_servo();
-    }
+    // if (acc_high_g) {
+    //   servo_percent = 0.0f;
+    // } else {
+    servo_percent = flight_state.get_servo();
+    // }
 
     // This interpolates between the two servo values based on the time
     //  elapsed it is has a pretty heavy duty math, but we can afford it
     Millis time = millis_in_mode();
     Millis dt = time - flight_servo_last_ms;
+    flight_servo_last_ms = time;
 
     float interp = std::exp(SERVO_SMOOTH_LN_MS * dt);
-    flight_servo_percent = (flight_servo_percent * interp) + (servo_percent * (1.0f - interp));
-    servo_percent = flight_servo_percent;
+    // flight_servo_percent = (flight_servo_percent * interp) + (servo_percent * (1.0f - interp));
+    // servo_percent = flight_servo_percent;
   } else if (board_mode == UNARMED) {
     // Just a generic parabola (maxed with 0) to generate the full range of motion over a few seconds
     // It is 0 at 1500 and 4500 millis and peaks at 1 since it is 0 at 1500 millis that gives
@@ -668,7 +668,7 @@ void sample_imu() {
   float sqr_mag;
   // This is after the high and low pass filter
   // If nothing the high and low pass filter we should probably go to high G mode
-  float filtered_sqr_mag = ACC_HIGH_G_SWITCH;
+  float filtered_sqr_mag = ACC_HIGH_G_SWITCH * ACC_HIGH_G_SWITCH;
 
   uint16_t samples;
   if (imu.FIFO_Get_Num_Samples(&samples) != ISM6HG256X_OK) {
@@ -812,7 +812,7 @@ void sample_imu() {
     // We only use low-g mode once in flight because when waiting for launch
     //  we want high g mode to get the early few readings of the launch
     if (board_mode == FLYING && acc_axis_read) {
-      if (!set_acc_mode(filtered_sqr_mag >= ACC_HIGH_G_SWITCH)) {
+      if (!set_acc_mode(filtered_sqr_mag >= ACC_HIGH_G_SWITCH * ACC_HIGH_G_SWITCH)) {
         note_error("Mode switch failed", IMU_ERR);
       }
     }
@@ -821,7 +821,7 @@ void sample_imu() {
   }
 
   if (acc_axis_read) {
-    write_data(Acc{acc_axis.x(), acc_axis.y(), acc_axis.z()});
+    write_data(Acc{acc_axis.x(), acc_axis.y(), acc_axis.z(), acc_high_g});
   }
 
   if (gyro_axis_read) {

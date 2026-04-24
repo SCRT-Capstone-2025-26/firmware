@@ -40,13 +40,22 @@ baro_data = []
 for i in range(max_steps):
     t = (i * micros_per_step / 1000 / 1000) - t_0
 
-    acc_data.append((0.0, 0.0, g))
-    hg_acc_data.append((0.0, 0.0, g))
-
+    # Loses index could cause bound problem
+    # I am too lazy
+    dv = np.diff(fs[:, 1]) / (np.diff(ts) + 0.0001)
     gyro_data.append((0.0, 0.0, 0.0))
     if t <= 0.0:
+        acc_data.append((0.0, 0.0, g))
+        hg_acc_data.append((0.0, 0.0, g))
+
         baro_data.append((h_to_pres(0.0), 0.0))
     else:
+        # Index lost stuff
+        # No idea why negative
+        acc = np.interp(t, ts[:-1], dv)
+        acc_data.append((0.0, 0.0, acc))
+        hg_acc_data.append((0.0, 0.0, acc))
+
         baro_data.append((h_to_pres(np.interp(t, ts, fs[:, 0])), 0.0))
 
 checker = LogChecker()

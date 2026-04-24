@@ -3,7 +3,7 @@ from collections import namedtuple
 import argparse
 from matplotlib import pyplot as plt
 
-Acc = namedtuple('Acc', ('x', 'y', 'z'))
+Acc = namedtuple('Acc', ('x', 'y', 'z', 'hg'))
 Gyro = namedtuple('Gyro', ('x', 'y', 'z'))
 Baro = namedtuple('Baro', ('pressure', 'tempurate'))
 Servo = namedtuple('Servo', ('percent'))
@@ -15,7 +15,7 @@ RotState = namedtuple('RotState', ('x', 'y', 'z', 'w'))
 Log = namedtuple('Log', ('time', 'core', 'message'))
 
 item_types = {
-    b'A': ('fff', Acc),
+    b'A': ('fff?', Acc),
     b'G': ('fff', Gyro),
     b'B': ('ff', Baro),
     b'S': ('f', Servo),

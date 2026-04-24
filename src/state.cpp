@@ -27,7 +27,7 @@ void FlightState::push_baro(float pressure, float temperature) {
   // TODO: Update this math
   float height = 44307.694 * (1 - pow(pressure / 1013.25, 0.190284));
   // Using the state like this is kinda not allowed in a true Kalman filter
-  float noise = 1.0f;
+  float noise = 3.0f;
 
   // Standard Kalman update
 
@@ -42,15 +42,13 @@ void FlightState::push_baro(float pressure, float temperature) {
 }
 
 void FlightState::push_acc(Eigen::Vector3f acc, bool is_high_g) {
-  // We need the un gravity compenstated magnitude for detecting if beavs can be used
-  raw_acc_mag_sq = acc.dot(acc);
-
   // Remove the fictitious gravity force
   acc -= rot.inverse() * Eigen::Vector3f(0.0f, GRAVITY_ACC, 0.0f);
 
-  float forward_acc = acc.dot(LOCAL_UP);
+  // Forward acc determines if beavs can extend
+  forward_acc = acc.dot(LOCAL_UP);
   // TODO: Determine
-  float noise = 1.0f;
+  float noise = 2.0f;
 
   // Since this is called regularly with a frequency of ACC_RATE we update the
   //  state and use acc as a control input
@@ -125,7 +123,7 @@ FlashState FlightState::get_flash() {
 // 0 percent servo is flush with the hull
 float FlightState::get_servo() {
   // We can't extend beavs while until we are not accelerating aka the raw (gravity included) accelerometer reading is small
-  if (raw_acc_mag_sq > BEAVS_EXT_ACC * BEAVS_EXT_ACC) {
+  if (forward_acc >= BEAVS_EXT_ACC) {
     return 0.0f;
   }
 
@@ -211,7 +209,7 @@ bool RestState::try_init_flying(FlightState &state) {
   state.cov(1, 1) = START_V_ERROR;
 
   // Before launch we are experiencing the fictitious gravity acceleration
-  state.raw_acc_mag_sq = GRAVITY_ACC * GRAVITY_ACC;
+  state.forward_acc = GRAVITY_ACC;
 
   // Simulate the state getting this data
   // This is quite expensive
@@ -248,7 +246,7 @@ bool RestState::try_init_flying_boot(FlightState &state) {
   state.cov(1, 1) = UNK_START_V_ERROR;
 
   // We just set this to a value that will not allow beavs to extend immediately
-  state.raw_acc_mag_sq = (BEAVS_EXT_ACC * BEAVS_EXT_ACC) + 1.0f;
+  state.forward_acc = BEAVS_EXT_ACC;
 
   return true;
 }

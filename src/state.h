@@ -79,29 +79,29 @@
 
 // This is the values that the rocket sets the estimated values to if it is booted during flight and there is no flash history
 // TODO: Determine values
-#define UNK_START_HEIGHT 0.0f
-#define UNK_START_VEL    0.0f
+#define UNK_START_HEIGHT 1000.0f
+#define UNK_START_VEL    100.0f
 
 // The errors the rocket starts with if it is booted during flight and there is no flash history
 // TODO: Determine values
-#define UNK_START_H_ERROR 1.0f
-#define UNK_START_V_ERROR 1.0f
-#define UNK_START_VH_CORR 1.0f
+#define UNK_START_H_ERROR 100.0f
+#define UNK_START_V_ERROR 100.0f
+#define UNK_START_VH_CORR 100.0f
 
 // This is the values that the rocket sets the estimated values to if it is booted during flight
 // TODO: Determine values
-#define BOOT_INC_HEIGHT 0.0f
-#define BOOT_INC_VEL    0.0f
+#define BOOT_INC_HEIGHT 100.0f
+#define BOOT_INC_VEL    -10.0f
 
 // The errors the rocket starts with if it is booted during flight
 // TODO: Determine values
-#define BOOT_INC_H_ERROR 1.0f
-#define BOOT_INC_V_ERROR 1.0f
-#define BOOT_INC_VH_CORR 1.0f
+#define BOOT_INC_H_ERROR 10.0f
+#define BOOT_INC_V_ERROR 10.0f
+#define BOOT_INC_VH_CORR 10.0f
 
-// The acceleration were beavs can extend
+// The upward acceleration below which beavs can extend
 // TODO: Determine value
-#define BEAVS_EXT_ACC (GRAVITY_ACC * 2.0f)
+#define BEAVS_EXT_ACC (GRAVITY_ACC * 0.5f)
 
 // Launch rail angle (4 degrees off straight up)
 // TODO: Check
@@ -129,7 +129,7 @@ struct FlightState {
   // The square magnititude of the accelerometer with the gravity acceleration included
   // This shuts off the BEAVS extension if it is to high to be safe
   // NOTE: Safety critical
-  float raw_acc_mag_sq;
+  float forward_acc = BEAVS_EXT_ACC;
 
   // 0 is height in world frame, 1 is velocity in rocket frame
   Eigen::Vector2f state;
