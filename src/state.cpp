@@ -122,13 +122,14 @@ FlashState FlightState::get_flash() {
   );
 }
 
+// 0 percent servo is flush with the hull
 float FlightState::get_servo() {
   // We can't extend beavs while until we are not accelerating aka the raw (gravity included) accelerometer reading is small
   if (raw_acc_mag_sq > BEAVS_EXT_ACC * BEAVS_EXT_ACC) {
     return 0.0f;
   }
 
-  return index_table(state(0), cosZenith, state(1));
+  return index_table(state(0), cosZenith, state(1)) * SERVO_MM_TO_PERCENT;
 }
 
 bool FlightState::done() {

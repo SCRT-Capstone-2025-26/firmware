@@ -114,6 +114,9 @@
 #define MIN_BARO_CUTOFF (0.8f * MACH_TO_MPS)
 #define MAX_BARO_CUTOFF (1.2f * MACH_TO_MPS)
 
+// 0 percent is 0mm
+#define SERVO_MM_TO_PERCENT (1.0f / 25.0f)
+
 // NOTE: Changing this affects the following line and load_flash() in state.cpp
 const Eigen::Vector3f LOCAL_UP(0.0f, 0.0f, 1.0f);
 // This is based on LOCAL_UP (this init should be changed to be dependent on LOCAL_UP)

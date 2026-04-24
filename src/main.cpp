@@ -491,10 +491,10 @@ void update_servo() {
     // If it enters this mode before the servo is inited the parabola could be messed up
     // The (1.0f / x) is for optimization
     float time = millis_in_mode() * 0.001f;
-    servo_percent = max(-(time - 1.5f) * (time - 4.5f) * (1.0f / 2.25f), 0.0f);
+    servo_percent = -(time - 1.5f) * (time - 4.5f) * (1.0f / 2.25f);
   }
 
-  float duty_percent = (servo_percent * (SERVO_DUTY_MAX - SERVO_DUTY_MIN)) + SERVO_DUTY_MIN;
+  float duty_percent = (max(min(servo_percent, 1.0f), 0.0f) * (SERVO_DUTY_MAX - SERVO_DUTY_MIN)) + SERVO_DUTY_MIN;
   // This does only returns false configuration errors so we just fail if this returns false
   if (!servo.setPWM(SERVO_1, SERVO_FREQ, duty_percent * 100.0f)) {
     note_error("PWM config error", FAIL_NOW_ERR);
