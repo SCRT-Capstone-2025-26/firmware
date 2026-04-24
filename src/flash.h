@@ -17,10 +17,10 @@ struct FlashState {
   float h_cov;
   float v_cov;
   float hv_cov;
-  float cosZenith;
+  float cos_zenith;
 
-  FlashState(float h, float v, float h_cov, float v_cov, float hv_cov, float cosZenith)
-    : h(h), v(v), h_cov(h_cov), v_cov(v_cov), hv_cov(hv_cov), cosZenith(cosZenith) {
+  FlashState(float h, float v, float h_cov, float v_cov, float hv_cov, float cos_zenith)
+    : h(h), v(v), h_cov(h_cov), v_cov(v_cov), hv_cov(hv_cov), cos_zenith(cos_zenith) {
   }
 
   FlashState() : h(0.0f), v(0.0f), h_cov(0.0f), v_cov(0.0f), hv_cov(0.0f) {

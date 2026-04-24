@@ -67,6 +67,13 @@
 //  some accelerometer data so we put that in the circular buffer as well
 #define ROT_HIST_SAMPLES  ((uint32_t)(0.5f * ACC_RATE))
 
+// https://en.wikipedia.org/wiki/Brothers,_Oregon
+#ifdef TEST
+#define HEIGHT_ABOVE_SEA_LEVEL 0.0f
+#else
+#define HEIGHT_ABOVE_SEA_LEVEL 1414.0f
+#endif
+
 // This depends on how the lookup table is made
 // TODO: Determine value
 #define START_HEIGHT 0.0f
@@ -116,13 +123,6 @@
 
 // 0 percent is 0mm
 #define SERVO_MM_TO_PERCENT (1.0f / 25.0f)
-
-// https://en.wikipedia.org/wiki/Brothers,_Oregon
-#ifdef TEST
-#define HEIGHT_ABOVE_SEA_LEVEL 0.0f
-#else
-#define HEIGHT_ABOVE_SEA_LEVEL 1414.0f
-#endif
 
 // NOTE: Changing this affects the following line and load_flash() in state.cpp
 const Eigen::Vector3f LOCAL_UP(0.0f, 0.0f, 1.0f);

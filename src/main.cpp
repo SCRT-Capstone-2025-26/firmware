@@ -498,7 +498,7 @@ void update_servo(int32_t current_milliamps) {
 
   // TODO: Maybe rolling average
   if (current_milliamps > MAX_CURRENT) {
-    servo_percent = 0;
+    servo_percent = 0.0f;
   }
 
   float duty_percent = (servo_percent * (SERVO_DUTY_MAX - SERVO_DUTY_MIN)) + SERVO_DUTY_MIN;
@@ -926,7 +926,7 @@ void loop1() {
   flash_save();
 
   if (board_mode == FLYING) {
-    write_data(FilterState{flight_state.state(0), flight_state.state(1), flight_state.cov(0, 0), flight_state.cov(1, 1), flight_state.cov(0, 1)});
+    write_data(FilterState{flight_state.state(0), flight_state.state(1), flight_state.cov(0, 0), flight_state.cov(1, 1), flight_state.cov(0, 1), flight_state.cos_zenith});
     write_data(RotState{flight_state.rot.x(), flight_state.rot.y(), flight_state.rot.z(), flight_state.rot.w()});
   }
 
