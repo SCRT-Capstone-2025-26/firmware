@@ -26,6 +26,7 @@ void FlightState::push_baro(float pressure, float temperature) {
   // This is the formula used by https://github.com/RobTillaart/MS5611
   // TODO: Update this math
   float height = 44307.694 * (1 - pow(pressure / 1013.25, 0.190284));
+  height -= HEIGHT_ABOVE_SEA_LEVEL;
   // Using the state like this is kinda not allowed in a true Kalman filter
   float noise = 50.0f;
 
