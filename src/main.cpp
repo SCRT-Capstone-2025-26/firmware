@@ -476,6 +476,14 @@ void update_servo(int32_t current_milliamps) {
     return;
   }
 
+  if (board_mode == UNARMED || board_mode == ARMED) {
+    // Don't waste power
+    if (!servo.setPWM(MAIN_SERVO, SERVO_FREQ, 0.0f)) {
+      note_error("PWM config error", FAIL_NOW_ERR);
+    }
+    return;
+  }
+
   float servo_percent = 0.0f;
   if (board_mode == FLYING) {
     // We clamp the servo because the lookup table internpolates huge values
