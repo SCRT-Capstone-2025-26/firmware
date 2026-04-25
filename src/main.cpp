@@ -26,12 +26,14 @@
 #define UNKNOWN_WAIT        2000
 
 #define SERVO_FREQ  300.0f
+// The provide percent extended
+// MIN is flush
 #define SERVO_MIN   0.0f
 #define SERVO_MAX   1.0f
+// These provide the safe operating bounds as percent of max freq
 // TODO: Check this
 #define SERVO_DUTY_MIN 0.75f
-#define SERVO_DUTY_MAX 0.15f
-#define SERVO_FLUSH    0.0f
+#define SERVO_DUTY_MAX 0.6f
 
 // The exponential decay for the servo during flight
 //  p = (SERVO_SMOOTH * p) + ((SERVO_SMOOTH - 1) * new_p)
@@ -83,7 +85,9 @@
 #define FIFO_WARNING_SAMPLES 255
 
 // TODO: Determine
-#define MAX_CURRENT 1000000
+#define MAX_CURRENT 2000.0f
+
+#define MAIN_SERVO SERVO_5
 
 enum BaroState {
   IDLE,
@@ -109,7 +113,7 @@ Millis flight_servo_last_ms;
 Micros baro_read_time;
 BaroState baro_state = IDLE;
 
-INA745 current_sensor = INA745(CURRENT_1_ID, &Wire);
+INA745 current_sensor = INA745(CURRENT_5_ID, &Wire);
 
 // The mode of the accelerometer
 // We stay in high g mode and only switch to low g after launch
@@ -132,7 +136,7 @@ MS5611_SPI baro(BAROMETER_CS, &softSPI);
 ISM6HG256XSensor imu(&softSPI, IMU_CS);
 
 // The servo has an operating frequency of 50-300Hz
-RP2040_PWM servo(SERVO_1, (float)SERVO_FREQ, 0.0f);
+RP2040_PWM servo(MAIN_SERVO, (float)SERVO_FREQ, 0.0f);
 
 void init_pins() {
   // Disable servo power on startup due to inrush
@@ -148,10 +152,10 @@ void init_pins() {
   // The others can just be 0
   servo.setPWM();
   // No floating pins for levelshifter
+  pinMode(SERVO_1, OUTPUT);  digitalWrite(SERVO_1, LOW);
   pinMode(SERVO_2, OUTPUT);  digitalWrite(SERVO_2, LOW);
   pinMode(SERVO_3, OUTPUT);  digitalWrite(SERVO_3, LOW);
   pinMode(SERVO_4, OUTPUT);  digitalWrite(SERVO_4, LOW);
-  pinMode(SERVO_5, OUTPUT);  digitalWrite(SERVO_5, LOW);
   pinMode(SERVO_6, OUTPUT);  digitalWrite(SERVO_6, LOW);
   pinMode(LED_DATA, OUTPUT); digitalWrite(LED_DATA, LOW);
 
@@ -172,6 +176,7 @@ void init_pins() {
 }
 
 // The servo cannot be enabled before the capacitors charge
+// TODO: Maybe use the current monitor to enable earlier in flight boot
 bool try_power_servo() {
   if (millis() < SERVO_CHARGE_MILLIS) {
     return false;
@@ -407,7 +412,7 @@ void update_mode() {
 
     case UNARMED:
       if (digitalRead(ARM_SWITCH) == ARM_ON) {
-        push_mode(ARMED);
+        // push_mode(ARMED);
       }
 
       break;
@@ -455,6 +460,7 @@ void update_mode() {
   watchdog_update();
 }
 
+// TODO: Set to no change in some cases maybe (ie 0.0f not + MIN_DUTY_CYCLE)
 void update_servo(int32_t current_milliamps) {
   if (!servo_powered) {
     if (try_power_servo()) {
@@ -503,7 +509,7 @@ void update_servo(int32_t current_milliamps) {
 
   float duty_percent = (servo_percent * (SERVO_DUTY_MAX - SERVO_DUTY_MIN)) + SERVO_DUTY_MIN;
   // This does only returns false configuration errors so we just fail if this returns false
-  if (!servo.setPWM(SERVO_1, SERVO_FREQ, duty_percent * 100.0f)) {
+  if (!servo.setPWM(MAIN_SERVO, SERVO_FREQ, duty_percent * 100.0f)) {
     note_error("PWM config error", FAIL_NOW_ERR);
   }
 
@@ -614,6 +620,10 @@ void step_sample_baro() {
 }
 
 bool set_acc_mode(bool new_high_g) {
+  // Switching the mode seems to be causing an issue
+  // TODO: Fix? it was working before
+  new_high_g = true;
+
 #ifdef CALIB_HG
   new_high_g = true;
 #endif
