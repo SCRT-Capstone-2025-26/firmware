@@ -32,7 +32,7 @@
 #define SERVO_MAX   1.0f
 // These provide the safe operating bounds as percent of max freq
 // TODO: Check this
-#define SERVO_DUTY_MIN 0.75f
+#define SERVO_DUTY_MIN 0.76f
 #define SERVO_DUTY_MAX 0.6f
 
 // The exponential decay for the servo during flight
