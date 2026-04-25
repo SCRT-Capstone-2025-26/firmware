@@ -42,7 +42,8 @@
 #define GRAVITY_ACC       9.80665f
 // The amount of acc from normal gravity required to consider
 //  it a launch
-#define LAUNCH_ACC        2.0f
+#define LAUNCH_ACC       30.0f
+#define LAUNCH_ACC_BOOT   2.0f
 // A big history can easily take up a lot of the kinda limited ram
 // The seconds of imu data to have in a rolling buffer so that after
 //  launch is detected the first few moments of launch
@@ -61,8 +62,9 @@
 //  so we can pick a constant that will give the same values
 //  as long as ACC_RATE remains high 1.5 seems good (it will detect flight
 //  after about 0.46s)
-#define LAUNCH_SAMPLE_DECAY (1.5f / ACC_RATE)
-#define LAUNCH_SAMPLE_REQ   0.5f
+#define LAUNCH_SAMPLE_DECAY    (1.5f / ACC_RATE)
+#define LAUNCH_SAMPLE_REQ      0.6f
+#define LAUNCH_SAMPLE_REQ_BOOT 0.3f
 // We need to determine the rotation before launch from
 //  some accelerometer data so we put that in the circular buffer as well
 #define ROT_HIST_SAMPLES  ((uint32_t)(0.5f * ACC_RATE))
@@ -193,6 +195,7 @@ struct RestState {
   // of whether a launch acceleration was detected for that
   // given timestep
   float launchiness = 0;
+  float launchiness_boot = 0;
 
   RestState() {}
 

@@ -162,8 +162,14 @@ void RestState::push_acc(Eigen::Vector3f acc, bool high_g) {
   // It probably wouldn't matter to use a norm sqrd, but RestState is not performance sensitive
   // Exponential moving average of the boolean values
   launchiness *= (1.0f - LAUNCH_SAMPLE_DECAY);
+  launchiness_boot *= (1.0f - LAUNCH_SAMPLE_DECAY);
+
   if (std::abs(acc.norm() - GRAVITY_ACC) >= LAUNCH_ACC) {
     launchiness += LAUNCH_SAMPLE_DECAY;
+  }
+
+  if (std::abs(acc.norm() - GRAVITY_ACC) >= LAUNCH_ACC_BOOT) {
+    launchiness_boot += LAUNCH_SAMPLE_DECAY;
   }
 }
 
@@ -232,7 +238,7 @@ bool RestState::try_init_flying(FlightState &state) {
 // This runs in UNKOWN mode and if a flight is detected it means we have just booted
 bool RestState::try_init_flying_boot(FlightState &state) {
   // If it is not launch time we just return early
-  if (launchiness <= LAUNCH_SAMPLE_REQ) {
+  if (launchiness <= LAUNCH_SAMPLE_REQ_BOOT) {
     return false;
   }
 
