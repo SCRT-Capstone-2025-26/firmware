@@ -36,11 +36,11 @@
 #define SERVO_DUTY_MAX 0.6f
 
 // The exponential decay for the servo during flight
-//  p = (SERVO_SMOOTH * p) + ((SERVO_SMOOTH - 1) * new_p)
+//  p = (SERVO_SMOOTH * p) + ((1 - SERVO_SMOOTH) * new_p)
 //  This formula assumes a sample every second the real formula does not
 // To prevent jittery servo
 // TODO: Determine
-#define SERVO_SMOOTH 0.5
+#define SERVO_SMOOTH 0.8
 // Get servo smooth into more favourable units
 // This should be compile time const
 #define SERVO_SMOOTH_LN_MS (std::log(SERVO_SMOOTH) * 0.001f)
@@ -254,12 +254,12 @@ void setup1() {
 
   // We only want to run tests if the board has been rebooted to stop running
   //  test immediatly when the board is plugged in to reflash
-  if (!reboot) {
-    // It seems like the LEDs need a bit of time to boot up
-    sleep(1);
-    led_show();
-    while (true) { sleep(1000); }
-  }
+  // if (!reboot) {
+  //   // It seems like the LEDs need a bit of time to boot up
+  //   sleep(1);
+  //   led_show();
+  //   while (true) { sleep(1000); }
+  // }
 #endif
 
   // Initialize the LED the rp2040 has two SPIs and we init the first one to be able to communicate to the sensors
@@ -412,7 +412,7 @@ void update_mode() {
 
     case UNARMED:
       if (digitalRead(ARM_SWITCH) == ARM_ON) {
-        // push_mode(ARMED);
+        push_mode(ARMED);
       }
 
       break;

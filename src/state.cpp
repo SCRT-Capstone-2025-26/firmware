@@ -128,7 +128,7 @@ float FlightState::get_servo() {
     return 0.0f;
   }
 
-  return index_table(state(0), cos_zenith, state(1)) * SERVO_MM_TO_PERCENT;
+  return index_table(state(0), 1.0, state(1)) * SERVO_MM_TO_PERCENT;
 }
 
 bool FlightState::done() {

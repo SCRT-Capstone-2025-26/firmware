@@ -5,9 +5,9 @@ import pathlib as pl
 g = 9.80665
 
 # (height, velocity_mag, angle)
-fs = np.load(pl.Path(__file__).parent / "f.npy")
+fs = np.load(pl.Path(__file__).parent / "fl.npy")
 # Time
-ts = np.load(pl.Path(__file__).parent / "t.npy")
+ts = np.load(pl.Path(__file__).parent / "tl.npy")
 
 # Four seconds before the launch starts
 t_0 = 4
