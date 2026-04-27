@@ -71,8 +71,9 @@
 // TODO: Determine value
 #define ACC_HIGH_G_SWITCH (ACC_FS * GRAVITY_ACC * 0.8f)
 
-#define ARM_ON  LOW
-#define ARM_OFF HIGH
+// high -> pulled up/not tied to ground -> on/armed; low -> tag not removed -> off/unarmed
+#define ARM_ON  HIGH
+#define ARM_OFF LOW
 
 // Clearing flash is quite slow (the core does feed the watchdog while clearing)
 //  but the minimum sector clear can be like 100ms I think at worst case it 
@@ -155,7 +156,8 @@ void init_pins() {
   pinMode(MISO, INPUT);
   pinMode(SCK, OUTPUT);
 
-  pinMode(ARM_SWITCH, INPUT);
+  // we have to pull up the arm switch ourselves
+  pinMode(ARM_SWITCH, INPUT_PULLUP);
   pinMode(BATTERY_SENSE, INPUT);
 
   pinMode(BAROMETER_CS, OUTPUT);
