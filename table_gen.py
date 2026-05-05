@@ -18,7 +18,9 @@ assert np.all(np.diff(heights) > 0)
 assert np.all(np.diff(angles) > 0)
 assert np.all(np.diff(exts) > 0)
 # We also require every row is monotonically increasing as well
-# Little numerical trick to achieve this
+# Little numerical trick to achieve this since the table is not
+#  generated to be montonic
+# TODO: Fix this somehow
 lookup += np.linspace(-0.0001, 0.0001, len(exts))
 assert np.all(np.diff(lookup) > 0)
 
