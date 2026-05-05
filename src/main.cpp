@@ -254,12 +254,12 @@ void setup1() {
 
   // We only want to run tests if the board has been rebooted to stop running
   //  test immediatly when the board is plugged in to reflash
-  // if (!reboot) {
-  //   // It seems like the LEDs need a bit of time to boot up
-  //   sleep(1);
-  //   led_show();
-  //   while (true) { sleep(1000); }
-  // }
+  if (!reboot) {
+    // It seems like the LEDs need a bit of time to boot up
+    sleep(1);
+    led_show();
+    while (true) { sleep(1000); }
+  }
 #endif
 
   // Initialize the LED the rp2040 has two SPIs and we init the first one to be able to communicate to the sensors
@@ -556,7 +556,7 @@ void step_sample_baro() {
       break;
 
     case READING_TEMP:
-      // If we hwave finished the read we switch to the pressure reading
+      // If we have finished the read we switch to the pressure reading
       if (!is_after(baro_read_time, micros())) {
         if (baro.stepReadRawPres(&read_duration) != MS5611_READ_OK) {
           note_error("Baro pres failure", BARO_ERR);

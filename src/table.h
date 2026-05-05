@@ -3,6 +3,8 @@
 
 #include <cstddef>
 
+// TODO: Fix this maybe having bugs and giving huge values when indexed out of bounds (the second only maybe needs to be done)
+
 // The lookup table is "compressed" by having the table
 //  be indexed by (heights, angles, extensions) and is populated
 //  by the velocity at the given height, angle and extension that

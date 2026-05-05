@@ -117,6 +117,7 @@
 #define RAIL_ANGLE (4.0f * DEG_TO_RAD)
 
 // This is roughly accurate
+// There is no standard value
 #define MACH_TO_MPS 343.0f
 // The speed range where the barometer is ignored due to areodynamic effects
 // TODO: Determine these

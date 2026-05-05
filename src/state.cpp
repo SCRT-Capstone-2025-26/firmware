@@ -122,6 +122,7 @@ FlashState FlightState::get_flash() {
 }
 
 // 0 percent servo is flush with the hull
+// TODO: Fix the angle being hardcoded, due to bugs
 float FlightState::get_servo() {
   // We can't extend beavs while until we are not accelerating aka the raw (gravity included) accelerometer reading is small
   if (forward_acc >= BEAVS_EXT_ACC) {
