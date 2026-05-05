@@ -4,6 +4,7 @@ from threading import Thread
 from parse import read_iter
 
 State = namedtuple('State', ('time', 'acc', 'hg_acc', 'gyro', 'baro'))
+Done = namedtuple('Done', ('time'))
 
 class DataManager():
     def __init__(self, path):
