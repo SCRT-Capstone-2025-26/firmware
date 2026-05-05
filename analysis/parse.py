@@ -39,16 +39,13 @@ def read_item(file):
     return timestamp, item_type(*args)
 
 
-def read_all(file):
-    items = []
+def read_iter(file):
     while True:
         item = read_item(file)
         if item is None:
             break
 
-        items.append(item)
-
-    return items
+        yield item
 
 
 def read_log(line):
@@ -76,7 +73,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     with open(args.path, 'rb') as file:
-        items = read_all(file)
+        items = list(read_iter(file))
 
     for typ in [Acc, Gyro, Baro, Servo, Current, FilterState, RotState]:
         typ_items = [(time, datum) for (time, datum) in items if isinstance(datum, typ)]
