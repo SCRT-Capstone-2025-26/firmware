@@ -219,6 +219,7 @@ void write_log(String content) {
     log_file.println(content);
   }
 
+  Serial.write('L');
   Serial.println(content);
 }
 
@@ -253,6 +254,10 @@ void handle_calib(DataEvent data) {
     data_file.write(id);
     data_file.write(&data.timestamp, sizeof(data.timestamp));
     data_file.write(&data.value, size);
+
+    Serial.write(id);
+    Serial.write(&data.timestamp, sizeof(data.timestamp));
+    Serial.write(&data.value, size);
   }
 }
 

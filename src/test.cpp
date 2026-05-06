@@ -146,8 +146,17 @@ bool get_reboot() {
   return done && micros() >= done_time;
 }
 
+void send_ack() {
+  Serial.write('K');
+  Serial.write('6');
+  Serial.write('7');
+}
+
 void init_debug() {
   sem_init(&buf_sem, 1, 1);
+
+  // Send an the that board is ready for debugging
+  send_ack();
 
   // Get the start state
   while (buf.size() == 0) {
@@ -186,6 +195,11 @@ void read_debug() {
       done = true;
 
       break;
+    case 'P':
+      Serial.read();
+      send_ack();
+      break;
+
     default:
       log_message("Debug read failure");
       break;
