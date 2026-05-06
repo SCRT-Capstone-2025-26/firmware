@@ -80,7 +80,7 @@ enum FailComp {
 #define BARO_ERR_LIM_PER_SECOND 10
 #define IMU_ERR_LIM_PER_SECOND  30
 
-#define GYRO_TO_RADPS     (0.001f * DEG_TO_RAD)
+#define GYRO_TO_RADPS (0.001f * DEG_TO_RAD)
 
 #define WATCHDOG_MS 10
 
@@ -103,6 +103,8 @@ Millis millis_in_mode();
 // Is a after b (handling overflows by assuming that the difference is small)
 // This should work for anything less than about 35 minutes
 bool is_after(Micros a, Micros b);
+
+float linear_interp(float x, float x0, float x1, float y0, float y1);
 
 #endif
 

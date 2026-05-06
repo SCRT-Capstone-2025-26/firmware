@@ -22,5 +22,11 @@ jobs:
       - name: Install PlatformIO core
         run: pip install --upgrade platformio
 
+      - name: Install requirements
+        run: |
+          pip install -r requirements.txt
+          pip install -r analysis/requirements.txt
+
       - name: Build firmware (all targets)
-        run: TEST_ID=0 TEST_FILE=analysis/tests/boot_test.py pio run
+        run: TEST_ID=0 TEST_FILE=analysis/tests/ground_boot_test.py pio run
+

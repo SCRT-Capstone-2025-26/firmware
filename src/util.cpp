@@ -86,7 +86,11 @@ void note_error(String &&message, FailComp failure_comp) {
       break;
   }
 
-  if (baro_errors >= BARO_ERR_LIM_PER_SECOND || imu_errors >= IMU_ERR_LIM_PER_SECOND || failure_comp == FAIL_NOW_ERR) {
+  // If we are DONE we don't go to FAILURE since we don't need to
+  //  and reboot could cause it to detect flight again when it shouldn't
+  if (board_mode != DONE && (baro_errors >= BARO_ERR_LIM_PER_SECOND ||
+                             imu_errors >= IMU_ERR_LIM_PER_SECOND ||
+                             failure_comp == FAIL_NOW_ERR)) {
     push_mode(FAILURE);
   }
 }
@@ -110,5 +114,15 @@ bool is_after(Micros a, Micros b) {
   //  it will have the same result
   Micros high_bit = delta >> ((sizeof(Micros) * 8) - 1);
   return high_bit == 1;
+}
+
+// Creates a line from the x0, x1, y0, y1 and then finds the y for the given x on that line
+// x0 should not be equal to x1
+float linear_interp(float x, float x0, float x1, float y0, float y1) {
+  float dx = x0 - x1;
+  float dy = y0 - y1;
+
+  float m = dy / dx;
+  return (m * (x - x0)) + y0;
 }
 

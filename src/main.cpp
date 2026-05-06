@@ -3,7 +3,6 @@
 #include <MS5611_SPI.h>
 #include <SPI.h>
 #include <RP2040_PWM.h>
-#include <cmath>
 #include <hardware/watchdog.h>
 #include <cstdint>
 #include <cmath>
@@ -21,27 +20,30 @@
 
 // NOTE: This code uses millis() extensively and assumes it will not overflow (it will overflow in >40 days and that is not intended usage)
 // TODO: Look into pressure drop when hitting around mach numbers
+// TODO: Look at the readability of the watchdog feeding
 
 #define SERVO_CHARGE_MILLIS 2000
 #define UNKNOWN_WAIT        2000
 
 #define SERVO_FREQ  300.0f
+// The provide percent extended
+// MIN is flush
 #define SERVO_MIN   0.0f
 #define SERVO_MAX   1.0f
+// These provide the safe operating bounds as percent of max freq
 // TODO: Check this
-#define SERVO_DUTY_MIN 0.75f
-#define SERVO_DUTY_MAX 0.15f
-#define SERVO_FLUSH    0.0f
+#define SERVO_DUTY_MIN 0.76f
+#define SERVO_DUTY_MAX 0.6f
 
 // The exponential decay for the servo during flight
-//  p = (SERVO_SMOOTH * p) + ((SERVO_SMOOTH - 1) * new_p)
+//  p = (SERVO_SMOOTH * p) + ((1 - SERVO_SMOOTH) * new_p)
 //  This formula assumes a sample every second the real formula does not
 // To prevent jittery servo
 // TODO: Determine
-#define SERVO_SMOOTH 0.3
+#define SERVO_SMOOTH 0.8
 // Get servo smooth into more favourable units
 // This should be compile time const
-#define SERVO_SMOOTH_LN_MS std::log(SERVO_SMOOTH * 0.001f)
+#define SERVO_SMOOTH_LN_MS (std::log(SERVO_SMOOTH) * 0.001f)
 
 // NOTE: The FS and senstivities are linked, but because the library is strange we have to include
 //  them twice
@@ -49,24 +51,23 @@
 #define GYRO_FS       4000
 #define ACC_FS        4
 #define ACC_HIGH_G_FS 64
-// TODO: Maybe tune the senstivities based on calibration
-#define GYRO_SENS       ISM6HG256X_GYRO_SENSITIVITY_FS_4000DPS
-#define ACC_SENS        ISM6HG256X_ACC_SENSITIVITY_FS_4G
-#define ACC_HIGH_G_SENS ISM6HG256X_ACC_SENSITIVITY_FS_64G
 
 // We treat very large or small values as errors to avoid hitting an extreme tail in the kalman filter
+// Currently millibars
 // TODO: Detrmine these
-#define MAX_PRES 1000000.0f
-#define MIN_PRES -1000000.0f
+#define MAX_PRES 3000.0f
+#define MIN_PRES 0.0f
 
-#define MAX_TEMP 1000000.0f
-#define MIN_TEMP -1000000.0f
+// Degrees C
+#define MAX_TEMP 100.0f
+#define MIN_TEMP -100.0f
 
+// This is Newtons squared (it is the max acceleration in Newtons squared)
 // TODO: Add gyro
-#define MAX_ACC_SQR_MAG 10000000.0f
+#define MAX_ACC_SQR_MAG 1000000.0f
 
 // The value where the acc switch froms low g to high g
-// Currently ACC_FS * GRAVITY_ACC is roughly the max acc reading
+// Currently ACC_FS * GRAVITY_ACC is roughly the max acc reading (the datasheet is in Gs)
 //  of the low so when 80% of that is reached it switches
 // TODO: Determine value
 #define ACC_HIGH_G_SWITCH (ACC_FS * GRAVITY_ACC * 0.8f)
@@ -85,6 +86,15 @@
 #define USEFUL_FLIGHT_TIME_MS 20 * 1000
 #define FLASH_SAMPLE_RATE     max(USEFUL_FLIGHT_TIME_MS / FLASH_BUF_ELEMS, 1)
 
+#define FIFO_WARNING_SAMPLES 255
+
+// This is in milliamps, but doesn't seem to protect anything anyways
+// TODO: Determine
+#define MAX_CURRENT 2000.0f
+
+#define MAIN_SERVO SERVO_5
+#define MAIN_SERVO_CURRENT CURRENT_5_ID
+
 enum BaroState {
   IDLE,
   READING_TEMP,
@@ -94,6 +104,10 @@ enum BaroState {
 const Eigen::Vector3f ACC_BIAS(_CALIB_ACC_BIAS_1, _CALIB_ACC_BIAS_2, _CALIB_ACC_BIAS_3);
 const Eigen::Vector3f ACC_HIGH_G_BIAS(_CALIB_ACC_HIGH_G_BIAS_1, _CALIB_ACC_HIGH_G_BIAS_2, _CALIB_ACC_HIGH_G_BIAS_3);
 const Eigen::Vector3f GYRO_BIAS(_CALIB_GYRO_BIAS_1, _CALIB_GYRO_BIAS_2, _CALIB_GYRO_BIAS_3);
+
+const Eigen::Vector3f ACC_SENS(_CALIB_ACC_SENS_1, _CALIB_ACC_SENS_2, _CALIB_ACC_SENS_3);
+const Eigen::Vector3f ACC_HIGH_G_SENS(_CALIB_ACC_HIGH_G_SENS_1, _CALIB_ACC_HIGH_G_SENS_2, _CALIB_ACC_HIGH_G_SENS_3);
+#define GYRO_SENS ISM6HG256X_GYRO_SENSITIVITY_FS_4000DPS
 
 FlightState flight_state = FlightState();
 RestState rest_state = RestState();
@@ -105,8 +119,7 @@ Millis flight_servo_last_ms;
 Micros baro_read_time;
 BaroState baro_state = IDLE;
 
-INA745 current_sensor = INA745(CURRENT_1_ID, &Wire);
-bool current_sens_failed = false;
+INA745 current_sensor = INA745(MAIN_SERVO_CURRENT, &Wire);
 
 // The mode of the accelerometer
 // We stay in high g mode and only switch to low g after launch
@@ -129,7 +142,7 @@ MS5611_SPI baro(BAROMETER_CS, &softSPI);
 ISM6HG256XSensor imu(&softSPI, IMU_CS);
 
 // The servo has an operating frequency of 50-300Hz
-RP2040_PWM servo(SERVO_1, (float)SERVO_FREQ, 0.0f);
+RP2040_PWM servo(MAIN_SERVO, (float)SERVO_FREQ, 0.0f);
 
 void init_pins() {
   // Disable servo power on startup due to inrush
@@ -145,11 +158,13 @@ void init_pins() {
   // The others can just be 0
   servo.setPWM();
   // No floating pins for levelshifter
-  pinMode(SERVO_2, OUTPUT);  digitalWrite(SERVO_2, LOW);
-  pinMode(SERVO_3, OUTPUT);  digitalWrite(SERVO_3, LOW);
-  pinMode(SERVO_4, OUTPUT);  digitalWrite(SERVO_4, LOW);
-  pinMode(SERVO_5, OUTPUT);  digitalWrite(SERVO_5, LOW);
-  pinMode(SERVO_6, OUTPUT);  digitalWrite(SERVO_6, LOW);
+  int servos[] = { SERVO_1, SERVO_2, SERVO_3, SERVO_4, SERVO_5, SERVO_6 };
+  for (int i = 0; i < sizeof(servos) / sizeof(*servos); i++) {
+    if (i == MAIN_SERVO) { continue; }
+
+    pinMode(i, OUTPUT);  digitalWrite(i, LOW);
+  }
+
   pinMode(LED_DATA, OUTPUT); digitalWrite(LED_DATA, LOW);
 
   pinMode(MOSI, OUTPUT);
@@ -170,6 +185,7 @@ void init_pins() {
 }
 
 // The servo cannot be enabled before the capacitors charge
+// TODO: Maybe use the current monitor to enable earlier in flight boot
 bool try_power_servo() {
   if (millis() < SERVO_CHARGE_MILLIS) {
     return false;
@@ -217,14 +233,23 @@ void setup1() {
 #warning NOTE: Using default calibration values (aka this board is uncalibrated)
   log_message("NOTE: Using default calibration values (aka this board is uncalibrated)");
 #else
+#if CALIB_LG
+#error Cannot load calibration when in CALIB_LG mode
+#endif
+#if CALIB_HG
+#error Cannot load calibration when in CALIB_HG mode
+#endif
+#if TEST
+#error Cannot load calibration when in TEST mode
+#endif
   if (id64 != _CALIB_ID) {
     note_error("Invalid calibration", FAIL_NOW_ERR);
     return;
   }
 #endif
 
-  // The radio is not currently used (or installed) so we just set the led to mark that (neutral is blue which is visible)
-  leds[LED_RADIO] = LED_NEUTRAL;
+  log_message("Build hash: " _BUILD_HASH);
+  log_message("Build timestamp: " _BUILD_TIMESTAMP);
 
   // Whether or not the watchdog has been triggered
   // watchdog_caused_reboot is actually any reboot
@@ -258,6 +283,7 @@ void setup1() {
   // This is what the brinup code sets it to so ...
   baro.setSPIspeed(10000000);
   // This sampling will change in the future
+  // TODO: Consider a smaller value for faster response time
   baro.setOversampling(OSR_ULTRA_HIGH);
 
   // The barometer is not sampling right now
@@ -290,8 +316,8 @@ void setup1() {
   // Allow high readings in the FIFO
   imu_init &= imu.FIFO_Set_HG(true) == ISM6HG256X_OK;
 
-  // Set Set FIFO watermark level
-  imu_init &= imu.FIFO_Set_Watermark_Level(199) == ISM6HG256X_OK;
+  // Set FIFO watermark level
+  imu_init &= imu.FIFO_Set_Watermark_Level(FIFO_WARNING_SAMPLES) == ISM6HG256X_OK;
   // Set FIFO stop on watermark level
   imu_init &= imu.FIFO_Set_Stop_On_Fth(1) == ISM6HG256X_OK;
 
@@ -316,12 +342,17 @@ void setup1() {
   Wire.setSCL(SCL);
   Wire.setClock(100000);
   Wire.begin();
+
+
+  bool current_sens_failed = false;
   if (current_sensor.begin() != INA_SUCCESS) {
     log_message("Current sensor init failed");
     current_sens_failed = true;
   }
 
-  if (baro_init && imu_init) {
+  leds[LED_CURRENT] = current_sens_failed ? LED_NEGATIVE : LED_POSITIVE;
+
+  if (baro_init && imu_init && !current_sens_failed) {
     // The board is now ready
     // If the arm switch is active we could be booting in flight
     //  and so should be in UNKNOWN until we know otherwise we can
@@ -438,7 +469,8 @@ void update_mode() {
   watchdog_update();
 }
 
-void update_servo() {
+// TODO: Set to no change in some cases maybe (ie 0.0f not + MIN_DUTY_CYCLE)
+void update_servo(int32_t current_milliamps) {
   if (!servo_powered) {
     if (try_power_servo()) {
       log_message("Servo powered");
@@ -453,20 +485,25 @@ void update_servo() {
     return;
   }
 
+  if (board_mode == UNARMED || board_mode == ARMED) {
+    // Don't waste power
+    if (!servo.setPWM(MAIN_SERVO, SERVO_FREQ, 0.0f)) {
+      note_error("PWM config error", FAIL_NOW_ERR);
+    }
+    return;
+  }
+
   float servo_percent = 0.0f;
   if (board_mode == FLYING) {
-    // FlightState shouldn't output beavs more than 0.0f if it is dangerous,
-    //  but this provides fallback security in case
-    if (acc_high_g) {
-      servo_percent = 0.0f;
-    } else {
-      servo_percent = flight_state.get_servo();
-    }
+    // We clamp the servo because the lookup table internpolates huge values
+    //  especially at the end this stosp the filter from being overpowered
+    servo_percent = max(min(flight_state.get_servo(), 1.0f), 0.0f);
 
     // This interpolates between the two servo values based on the time
     //  elapsed it is has a pretty heavy duty math, but we can afford it
     Millis time = millis_in_mode();
     Millis dt = time - flight_servo_last_ms;
+    flight_servo_last_ms = time;
 
     float interp = std::exp(SERVO_SMOOTH_LN_MS * dt);
     flight_servo_percent = (flight_servo_percent * interp) + (servo_percent * (1.0f - interp));
@@ -478,12 +515,23 @@ void update_servo() {
     // If it enters this mode before the servo is inited the parabola could be messed up
     // The (1.0f / x) is for optimization
     float time = millis_in_mode() * 0.001f;
-    servo_percent = max(-(time - 1.5f) * (time - 4.5f) * (1.0f / 2.25f), 0.0f);
+    servo_percent = -(time - 1.5f) * (time - 4.5f) * (1.0f / 2.25f);
+    servo_percent = max(min(servo_percent, 1.0f), 0.0f);
+  }
+
+  // This currently doesn't seem to provide any protection, because the sensor
+  //  or control loop is too slow to work anyway
+  // TODO: Look into the importance of this (it may work, but that needs to be checked)
+  //  I don't like have conditions without a rolling average because this could lead to
+  //  jittering if repeatly falsly triggered however I don't think we can affored latency
+  //  on this
+  if (current_milliamps > MAX_CURRENT) {
+    servo_percent = 0.0f;
   }
 
   float duty_percent = (servo_percent * (SERVO_DUTY_MAX - SERVO_DUTY_MIN)) + SERVO_DUTY_MIN;
   // This does only returns false configuration errors so we just fail if this returns false
-  if (!servo.setPWM(SERVO_1, SERVO_FREQ, duty_percent * 100.0f)) {
+  if (!servo.setPWM(MAIN_SERVO, SERVO_FREQ, duty_percent * 100.0f)) {
     note_error("PWM config error", FAIL_NOW_ERR);
   }
 
@@ -492,7 +540,7 @@ void update_servo() {
   watchdog_update();
 }
 
-// TODO: Check self heating mentioned for similar product in MS5xxx library docs
+// NOTE: Self heating mentioned for similar product in MS5xxx library docs, but doesn't seem to happen
 // NOTE: Currently the barometer library can't fail a transfer because it is SPI this may change though
 void step_sample_baro() {
   // The barometer takes time to complete a read so this holds
@@ -550,6 +598,7 @@ void step_sample_baro() {
         }
 
         if (board_mode == FLYING) {
+          // NOTE: Pressure is in milibars we plan on converting it
           float pres = baro.getPressure();
           float temp = baro.getTemperature();
 
@@ -593,6 +642,10 @@ void step_sample_baro() {
 }
 
 bool set_acc_mode(bool new_high_g) {
+  // Switching the mode seems to be causing an issue
+  // TODO: Fix? it was working before
+  new_high_g = true;
+
 #ifdef CALIB_HG
   new_high_g = true;
 #endif
@@ -632,7 +685,9 @@ bool set_acc_mode(bool new_high_g) {
   return true;
 }
 
-// TODO: Maybe account for the accelerometer effects offset from the gyro
+// NOTE: We could account for the accelerometer effects offset from the gyro,
+//  but it doesn't really matter since the rocket isn't rotating much
+//  small high frequency rotations during flight will increase noise though
 // NOTE: We read raw data because not reading raw data reads the senstivity
 //  from the sensor making the FIFO reading twice as slow. We also don't use
 //  the standard senstivity instead using calibrated senstivities
@@ -651,12 +706,16 @@ void sample_imu() {
   float sqr_mag;
   // This is after the high and low pass filter
   // If nothing the high and low pass filter we should probably go to high G mode
-  float filtered_sqr_mag = ACC_HIGH_G_SWITCH;
+  float filtered_sqr_mag = ACC_HIGH_G_SWITCH * ACC_HIGH_G_SWITCH;
 
   uint16_t samples;
   if (imu.FIFO_Get_Num_Samples(&samples) != ISM6HG256X_OK) {
     note_error("Sample read failed", IMU_ERR);
     return;
+  }
+
+  if (samples >= FIFO_WARNING_SAMPLES) {
+    note_error("Warning too many fifo samples", DO_NOTHING_ERR);
   }
 
 #ifdef TEST
@@ -691,7 +750,7 @@ void sample_imu() {
         gyro_axis -= GYRO_BIAS;
 
 #ifdef TEST
-        get_gyro(&gyro_axis, sample_time + (Micros)((samples - i + 1) * sample_time));
+        get_gyro(&gyro_axis, sample_time + (Micros)((samples - i + 1) * micros_per_sample));
 #endif
 
         if (board_mode == FLYING) {
@@ -715,13 +774,14 @@ void sample_imu() {
 
         acc_axis_read = true;
 
-        acc_axis.x() = reading_data[0] * ACC_SENS;
-        acc_axis.y() = reading_data[1] * ACC_SENS;
-        acc_axis.z() = reading_data[2] * ACC_SENS;
+        acc_axis.x() = reading_data[0];
+        acc_axis.y() = reading_data[1];
+        acc_axis.z() = reading_data[2];
+        acc_axis.array() *= ACC_SENS.array();
         acc_axis -= ACC_BIAS;
 
 #ifdef TEST
-        get_acc(&acc_axis, sample_time + (Micros)((samples - i + 1) * sample_time));
+        get_acc(&acc_axis, sample_time + (Micros)((samples - i + 1) * micros_per_sample));
 #endif
 
         sqr_mag = acc_axis.dot(acc_axis);
@@ -755,13 +815,14 @@ void sample_imu() {
 
         acc_axis_read = true;
 
-        acc_axis.x() = reading_data[0] * ACC_HIGH_G_SENS;
-        acc_axis.y() = reading_data[1] * ACC_HIGH_G_SENS;
-        acc_axis.z() = reading_data[2] * ACC_HIGH_G_SENS;
+        acc_axis.x() = reading_data[0];
+        acc_axis.y() = reading_data[1];
+        acc_axis.z() = reading_data[2];
+        acc_axis.array() *= ACC_HIGH_G_SENS.array();
         acc_axis -= ACC_HIGH_G_BIAS;
 
 #ifdef TEST
-        get_hg_acc(&acc_axis, sample_time + (Micros)((samples - i + 1) * sample_time));
+        get_hg_acc(&acc_axis, sample_time + (Micros)((samples - i + 1) * micros_per_sample));
 #endif
 
         sqr_mag = acc_axis.dot(acc_axis);
@@ -789,7 +850,7 @@ void sample_imu() {
     // We only use low-g mode once in flight because when waiting for launch
     //  we want high g mode to get the early few readings of the launch
     if (board_mode == FLYING && acc_axis_read) {
-      if (!set_acc_mode(filtered_sqr_mag >= ACC_HIGH_G_SWITCH)) {
+      if (!set_acc_mode(filtered_sqr_mag >= ACC_HIGH_G_SWITCH * ACC_HIGH_G_SWITCH)) {
         note_error("Mode switch failed", IMU_ERR);
       }
     }
@@ -798,7 +859,7 @@ void sample_imu() {
   }
 
   if (acc_axis_read) {
-    write_data(Acc{acc_axis.x(), acc_axis.y(), acc_axis.z()});
+    write_data(Acc{acc_axis.x(), acc_axis.y(), acc_axis.z(), acc_high_g});
   }
 
   if (gyro_axis_read) {
@@ -806,11 +867,8 @@ void sample_imu() {
   }
 }
 
-void sample_current() {
-  if (current_sens_failed) {
-    return;
-  }
-
+int32_t sample_current() {
+  // Read always returns INA_SUCCESS
   current_sensor.read();
 
   write_data(Current{
@@ -819,6 +877,8 @@ void sample_current() {
     current_sensor.current_milliamps(),
     current_sensor.power_microwatts()
   });
+
+  return current_sensor.current_milliamps();
 }
 
 // This handles what the board should do when it has reached a critical failure
@@ -834,40 +894,7 @@ void do_failure() {
 #endif
 }
 
-// TODO: We could make the loop schedule in a way that does more barometer readings
-//  because we don't really need to run the loop a bunch between barometer readings
-//  so we could just run the loop then wait for the next barometer reading to be
-//  ready (this would mess with the flash write rate if not done well). The
-//  loop may be fast enough it doesn't matter
-void loop1() {
-  // If we have reached critical failure then we return early
-  if (board_mode == FAILURE) {
-    do_failure();
-    return;
-  }
-
-  // Sample the sensors (this updates the relevant state object)
-  // The barometer only provides samples at the odr sampling rate
-  //  so this function just advances the sampling process if possible
-  // We sample the imu first since it contains a buffer of all the samples
-  //  and we want the samples fed to the flight state roughly in order
-  //  so we want the buffer to be empty when reading the pressure sensor
-  //  to ensure it is in order roughly
-  sample_imu();
-  step_sample_baro();
-  // This is current only used for logging, but may be used to increase boot speed in UNKNOWN mode,
-  //  by sensing a safe time to activate the servo
-  sample_current();
-
-  // Update the servo based on the state object
-  update_servo();
-
-  // This is slow from UNKNOWN to UNARMED
-  //  however we don't care since it is on the ground flight
-  //  state and so losing accelerometer data in the fifo
-  //  doesn't really matter
-  update_mode();
-
+void flash_save() {
   if (board_mode == FLYING && millis_in_mode() >= next_flash_write) {
     // We limit the amount of flash errors to the log by only logging changes in the state of the flash
     //  this could still spam the log if it changes rapidly
@@ -890,9 +917,48 @@ void loop1() {
 
     next_flash_write += FLASH_SAMPLE_RATE;
   }
+}
+
+// NOTE: We could make the loop schedule in a way that does more barometer readings
+//  because we don't really need to run the loop a bunch between barometer readings
+//  so we could just run the loop then wait for the next barometer reading to be
+//  ready (this would mess with the flash write rate if not done well). The
+//  loop may be fast enough it doesn't matter
+void loop1() {
+  // If we have reached critical failure then we return early
+  if (board_mode == FAILURE) {
+    do_failure();
+    return;
+  }
+
+  // Sample the sensors (this updates the relevant state object)
+  // The barometer only provides samples at the odr sampling rate
+  //  so this function just advances the sampling process if possible
+  // We sample the imu first since it contains a buffer of all the samples
+  //  and we want the samples fed to the flight state roughly in order
+  //  so we want the buffer to be empty when reading the pressure sensor
+  //  to ensure it is in order roughly
+  sample_imu();
+  step_sample_baro();
+  // This is current only used for logging, but may be used to increase boot speed in UNKNOWN mode,
+  //  by sensing a safe time to activate the servo
+  int32_t current = sample_current();
+
+  // Update the servo based on the state object
+  // Current can disable servo if too high
+  update_servo(current);
+
+  // This is slow from UNKNOWN to UNARMED
+  //  however we don't care since it is on the ground flight
+  //  state and so losing accelerometer data in the fifo
+  //  doesn't really matter
+  update_mode();
+
+  // Save to the flash buffer if needed this is not instant, but quite fast
+  flash_save();
 
   if (board_mode == FLYING) {
-    write_data(FilterState{flight_state.state(0), flight_state.state(1), flight_state.cov(0, 0), flight_state.cov(1, 1), flight_state.cov(0, 1)});
+    write_data(FilterState{flight_state.state(0), flight_state.state(1), flight_state.cov(0, 0), flight_state.cov(1, 1), flight_state.cov(0, 1), flight_state.cos_zenith});
     write_data(RotState{flight_state.rot.x(), flight_state.rot.y(), flight_state.rot.z(), flight_state.rot.w()});
   }
 

@@ -12,7 +12,9 @@ struct RGB {
 
 enum LEDs {
     LED_SD       = 0,
-    LED_RADIO    = 1,
+    // Current sensor used is the RADIO LED
+    // This code doesn't use the RADIO though
+    LED_CURRENT  = 1,
     LED_IMU      = 2,
     LED_BARO     = 3,
     // Watchdog used is the MAGN LED

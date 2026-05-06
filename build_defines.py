@@ -1,6 +1,8 @@
 import tomllib
 import pathlib
 import os
+import git
+import datetime
 
 Import('env')
 
@@ -9,6 +11,9 @@ board_name = os.getenv('BOARD', DEFAULT_NAME)
 
 config_file = pathlib.Path('calibrations', f'{board_name}.toml')
 default_file = pathlib.Path('calibrations', f'{DEFAULT_NAME}.toml')
+
+repo = git.Repo(search_parent_directories=True)
+sha = repo.head.object.hexsha
 
 # NOTE: This script is only designed to handle numbers, booleans, and arrays of numbers
 if os.path.exists(config_file):
@@ -30,7 +35,11 @@ if os.path.exists(config_file):
         assert default_type == value_type, f'Type mismatch for key {key}: expected {default_type}, got {value_type}'
 
     # Load the calibration into C++ defines
-    defines = []
+    # The strings have to be escaped since platformio doesn't
+    defines = [
+        ('_BUILD_HASH', f'\\"{sha}\\"'),
+        ('_BUILD_TIMESTAMP', f'\\"{datetime.datetime.now(datetime.timezone.utc)}"\\')
+    ]
     for key, value in config.items():
         key = f'_CALIB_{key}'
 

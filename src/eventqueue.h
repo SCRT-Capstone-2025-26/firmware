@@ -44,13 +44,9 @@ public:
     }
 
     // Pop first item from queue.
-    bool getQ(T &e, bool blocking) {
-        if (blocking) {
-            sem_acquire_blocking(&_count_sem);
-        } else {
-            if (!sem_try_acquire(&_count_sem)) {
-              return false;
-            }
+    bool getQ(T &e, uint32_t timeout_ms) {
+        if (!sem_acquire_timeout_ms(&_count_sem, timeout_ms)) {
+          return false;
         }
 
         sem_acquire_blocking(&_rw_sem);

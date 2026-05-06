@@ -27,6 +27,7 @@ struct __attribute__((packed)) Acc {
   float x;
   float y;
   float z;
+  bool hg;
 };
 
 struct __attribute__((packed)) Gyro {
@@ -58,6 +59,7 @@ struct __attribute__((packed)) FilterState {
   float h_cov;
   float v_cov;
   float hv_cov;
+  float cos_zenith;
 };
 
 struct __attribute__((packed)) RotState {

@@ -4,3 +4,8 @@ IS_DEFAULT = true
 ACC_BIAS = [0, 0, 0]
 ACC_HIGH_G_BIAS = [0, 0, 0]
 GYRO_BIAS = [0, 0, 0]
+
+# Just rough values
+ACC_SENS = [0.0175, 0.0175, 0.0175]
+ACC_HIGH_G_SENS = [0.0175, 0.0175, 0.0175]
+

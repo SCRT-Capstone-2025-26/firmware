@@ -1,11 +1,7 @@
 #include <atomic>
 #include <SdFat.h>
-#include <cstddef>
-#include <cstdint>
 #include <pico/platform.h>
 #include <variant>
-#include <tuple>
-// TODO: Add radio
 
 #include "logging.h"
 #include "eventqueue.h"
@@ -27,6 +23,10 @@
 // The amount of the event buffer filled where log messages stop being added
 //  this prevents log spam from stopping data being written in theory
 #define LOG_BUF_LIMIT   (EVENT_BUF_LIMIT / 2)
+
+// This is to feed the Arduino stuff I believe
+//  that runs outside of the loop. I don't think this is needed
+#define EVENT_TIMEOUT 5
 
 // This file handles the code that runs on the other core and handles the logging for Beavs
 
@@ -144,7 +144,6 @@ void setup() {
   //  until the files are created and written to
   bool file_inited = false;
   // Check if we can access the sd
-  // TODO: There is probably some errors that are not being checked (like the returns from mkdir)
   if (sd.begin(SdioConfig(SD_CLOCK, SD_CMD, SD_DATA_0))) {
     log_message("SD inited");
 
@@ -154,6 +153,8 @@ void setup() {
 
     // Try to create the log files we just search for the first two files with an available name
     //  by incrementing the number in the name
+    // NOTE: This loop actually takes some time so the SD card should be cleared before flight
+    // TODO: This should be fixed at least for release mode
     for (int i = 0; i < INT_MAX; i++) {
 #ifdef TEST
       String log_path = "Logs/log_test_" TEST_ID "_" + String(i) + ".txt";
@@ -173,6 +174,12 @@ void setup() {
       // Open the files
       log_file = sd.open(log_path, (oflag_t)(O_CREAT | O_WRITE | O_APPEND));
       data_file = sd.open(data_path, (oflag_t)(O_CREAT | O_WRITE | O_APPEND));
+
+      // This means one of the files failed to be opened
+      // We can just keep trying to open different files
+      if (!log_file || !data_path) {
+        continue;
+      }
 
       // We have created log files
       file_inited = true;
@@ -235,43 +242,35 @@ void handle_calib(DataEvent data) {
 void loop() {
   std::variant<LogEvent, DataEvent> event;
 
-  bool events_empty = false;
-  while (true) {
-    // We try a non-blocking read first to see if the queue is empty
-    if (!events.getQ(event, false)) {
-      // If the read fails we know the queue is empty and start a blocking read
-      //  even though the queue may not be empty after the blocking read this is
-      //  good enough
-      events_empty = true;
+  // We try a non-blocking read first to see if the queue is empty
+  if (!events.getQ(event, 0)) {
+    // We now have time to flush the buffers
+    data_file.flush();
+    log_file.flush();
 
-      events.getQ(event, true);
-    }
-
-    // Check if there was an overflow in the event queue
-    if (log_write_fail) {
-      // Set this false first to catch more overflows
-      log_write_fail = false;
-
-      write_log("Log buffer full.");
-    }
-
-    if (data_write_fail) {
-      // Set this false first to catch more overflows
-      data_write_fail = false;
-
-      write_log("Data buffer full.");
-    }
-
-    // I don't know why the lambdas are needed
-    match(event, [](LogEvent event) { handle_log_event(event); }, [](DataEvent event) { handle_calib(event); });
-
-    // If the queue was just empty we probably have some extra time to flush the buffers
-    // The queue may not be empty by this point, but it will probably not have much so
-    //  we have some time to flush the buffers
-    if (events_empty) {
-      data_file.flush();
-      log_file.flush();
+    // If we still don't get anything then we return to let the Arduino
+    //  stuff run a bit. I don't think this is needed
+    if (!events.getQ(event, EVENT_TIMEOUT)) {
+      return;
     }
   }
+
+  // Check if there was an overflow in the event queue
+  if (log_write_fail) {
+    // Set this false first to catch more overflows
+    log_write_fail = false;
+
+    write_log("Log buffer full.");
+  }
+
+  if (data_write_fail) {
+    // Set this false first to catch more overflows
+    data_write_fail = false;
+
+    write_log("Data buffer full.");
+  }
+
+  // I don't know why the lambdas are needed
+  match(event, [](LogEvent event) { handle_log_event(event); }, [](DataEvent event) { handle_calib(event); });
 }
 

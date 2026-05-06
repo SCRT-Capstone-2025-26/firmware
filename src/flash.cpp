@@ -17,7 +17,6 @@
 // We are not concerned about time sicne clearing is already slow
 #define CLEAR_SLEEP_MS 2
 
-// TODO: Check is it XIP_BASE
 #define BUF_ADDR (FLASH_SIZE - FILESYS_SIZE - 4096 + XIP_BASE)
 
 static_assert(BUF_ADDR % FLASH_SECTOR_SIZE == 0, "Data buffer address must be divisible by FLASH_SECTOR_SIZE");
@@ -36,12 +35,12 @@ FlashState *flash_buf = (FlashState *)BUF_ADDR;
 size_t flash_index = INVALID_FLASH_INDEX;
 
 // Binary searches the array for the last valid entry
-// TODO: Verify
 bool flash_reinit(FlashState *state) {
 #ifdef NO_FLASH
   return false;
 #endif
 
+  // size_t is unsigned, but it still works as -1 in this context
   size_t low = -1;
   size_t high = FLASH_BUF_ELEMS;
 
@@ -56,12 +55,12 @@ bool flash_reinit(FlashState *state) {
     }
   }
 
-  flash_index = low + 1;
-
   // Handles the edge case of no valid entries
   if (low == -1) {
     return false;
   }
+
+  flash_index = low + 1;
 
   *state = flash_buf[low];
   return true;

@@ -1,25 +1,26 @@
 import struct
 from collections import namedtuple
 import argparse
+from matplotlib import pyplot as plt
 
-Acc = namedtuple('Acc', ('x', 'y', 'z'))
+Acc = namedtuple('Acc', ('x', 'y', 'z', 'hg'))
 Gyro = namedtuple('Gyro', ('x', 'y', 'z'))
 Baro = namedtuple('Baro', ('pressure', 'tempurate'))
 Servo = namedtuple('Servo', ('percent'))
 # The units here are not the standard SI units
 Current = namedtuple('Current', ('voltage', 'temp', 'current', 'power'))
-FilterState = namedtuple('FilterState', ('h', 'v', 'h_cov', 'v_cov', 'hv_cov'))
+FilterState = namedtuple('FilterState', ('h', 'v', 'h_cov', 'v_cov', 'hv_cov', 'cos_zenith'))
 RotState = namedtuple('RotState', ('x', 'y', 'z', 'w'))
 
 Log = namedtuple('Log', ('time', 'core', 'message'))
 
 item_types = {
-    b'A': ('fff', Acc),
+    b'A': ('fff?', Acc),
     b'G': ('fff', Gyro),
     b'B': ('ff', Baro),
     b'S': ('f', Servo),
     b'C': ('HiiI', Current),
-    b'F': ('fffff', FilterState),
+    b'F': ('ffffff', FilterState),
     b'R': ('ffff', RotState)
 }
 
@@ -71,11 +72,22 @@ def read_logs(file):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("path")
+    parser.add_argument('path')
     args = parser.parse_args()
 
     with open(args.path, 'rb') as file:
-        for item in read_all(file):
-            print(item)
+        items = read_all(file)
 
+    for typ in [Acc, Gyro, Baro, Servo, Current, FilterState, RotState]:
+        typ_items = [(time, datum) for (time, datum) in items if isinstance(datum, typ)]
+        if len(typ_items) == 0:
+            continue
+
+        # The tuple(zip(*)) causes a transpose
+        times, data = tuple(zip(*typ_items))
+        plt.plot(times, data, label=typ._fields)
+        plt.title(typ.__name__)
+        plt.legend()
+        plt.xlabel('ms')
+        plt.show()
 
