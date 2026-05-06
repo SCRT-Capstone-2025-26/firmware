@@ -35,6 +35,8 @@ class DataManager():
 
 
     def __exit__(self):
-        # Should kill the thread
+        # Should kill the thread by raising an exception
         self.file.close()
+
+
 

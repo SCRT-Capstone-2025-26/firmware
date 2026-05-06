@@ -150,9 +150,7 @@ void setup() {
 
   // If the init fails then we can continue since it may just cause
   //  the test to have a bit of undefined readings
-  if (!init_debug()) {
-    log_message("Debug init failed");
-  }
+  init_debug();
 #endif
 
   // Try to init the file we just assume that the file is not inited
