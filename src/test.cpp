@@ -67,12 +67,14 @@ typedef struct IndexedState {
 std::atomic_bool done = false;
 std::atomic<Millis> done_time = 0;
 // Using a non-locking circular buffer may be better
-std::atomic<CircularBuffer<StateCommand, COMMAND_BUF_SIZE>> buf;
+semaphore_t buf_sem;
+CircularBuffer<StateCommand, COMMAND_BUF_SIZE> buf;
 
 // buf must not be empty
 IndexedState time_index(Micros time) {
   IndexedState index;
 
+  sem_acquire_blocking(&buf_sem);
   // Binary search is now cringe mostly cause this buffer contains way more
   //  non-important states since it only gets cleared when full
   for (size_t i = 0; i < buf.size(); i++) {
@@ -81,6 +83,7 @@ IndexedState time_index(Micros time) {
       index.c2 = buf[max(i, 1) - 1];
     }
   }
+  sem_release(&buf_sem);
 
   return index;
 }
@@ -142,6 +145,8 @@ bool get_reboot() {
 }
 
 void init_debug() {
+  sem_init(&_rw_sem, 1, 1);
+
   // Get the start state
   while (buf.size() == 0) {
     read_debug();
@@ -149,11 +154,35 @@ void init_debug() {
 }
 
 void read_debug() {
-  char desc = Serial.read();
+  char desc = Serial.peek();
   switch (desc) {
     case 'S':
+      StateCommand state_command;
+      // The serial buffer is expanded in TEST mode so state_command can fit
+      if (Serial.available() < sizeof(state_command) + 1) {
+        break;
+      }
+
+      Serial.read();
+      Serial.readBytes(&state_command, sizeof(state_command));
+
+      sem_acquire_blocking(&buf_sem);
+      buf.unshift(state_command);
+      sem_release(&buf_sem);
+
       break;
     case 'D':
+      DoneCommand done_command;
+      if (Serial.available() < sizeof(done_command) + 1) {
+        break;
+      }
+
+      Serial.read();
+      Serial.readBytes(&done_command, sizeof(done_command));
+
+      done_time = done_command.time;
+      done = true;
+
       break;
     default:
       log_message("Debug read failure");

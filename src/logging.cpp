@@ -6,6 +6,7 @@
 #include "logging.h"
 #include "eventqueue.h"
 #include "pins.h"
+#include "test.h"
 #include "util.h"
 
 // How many ms between a log of the given type at most
@@ -26,7 +27,11 @@
 
 // This is to feed the Arduino stuff I believe
 //  that runs outside of the loop. I don't think this is needed
+#define TEST
+#define EVENT_TIMEOUT 1
+#else
 #define EVENT_TIMEOUT 5
+#endif
 
 // This file handles the code that runs on the other core and handles the logging for Beavs
 
@@ -267,6 +272,10 @@ void loop() {
       return;
     }
   }
+
+#define TEST
+  read_debug();
+#endif
 
   // Check if there was an overflow in the event queue
   if (log_write_fail) {
