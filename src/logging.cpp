@@ -140,6 +140,21 @@ void setup() {
   Serial.begin(115200);
   log_message("Serial inited");
 
+#ifdef TEST
+  while (!Serial) {
+    delay(100);
+  }
+
+  String test_id = Serial.readStringUntil('\0');
+  log_message("Loaded Test ID: " + test_id);
+
+  // If the init fails then we can continue since it may just cause
+  //  the test to have a bit of undefined readings
+  if (!init_debug()) {
+    log_message("Debug init failed");
+  }
+#endif
+
   // Try to init the file we just assume that the file is not inited
   //  until the files are created and written to
   bool file_inited = false;
@@ -157,8 +172,8 @@ void setup() {
     // TODO: This should be fixed at least for release mode
     for (int i = 0; i < INT_MAX; i++) {
 #ifdef TEST
-      String log_path = "Logs/log_test_" TEST_ID "_" + String(i) + ".txt";
-      String data_path = "Data/data_test_" TEST_ID "_" + String(i) + ".bin";
+      String log_path = "Logs/log_test_" + test_id + "_" + String(i) + ".txt";
+      String data_path = "Data/data_test_" + test_id + "_" + String(i) + ".bin";
 #else
       String log_path = "Logs/log_" + String(i) + ".txt";
       String data_path = "Data/data_" + String(i) + ".bin";

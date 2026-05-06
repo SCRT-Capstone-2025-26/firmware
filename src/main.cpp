@@ -258,15 +258,6 @@ void setup1() {
 #ifdef TEST
   #warning Board is in TEST mode
   log_message("Board is in TEST mode");
-
-  // We only want to run tests if the board has been rebooted to stop running
-  //  test immediatly when the board is plugged in to reflash
-  if (!reboot) {
-    // It seems like the LEDs need a bit of time to boot up
-    sleep(1);
-    led_show();
-    while (true) { sleep(1000); }
-  }
 #endif
 
   // Initialize the LED the rp2040 has two SPIs and we init the first one to be able to communicate to the sensors
@@ -365,6 +356,10 @@ void setup1() {
     note_error("Init failed", FAIL_NOW_ERR);
   }
 
+#ifdef TEST
+  ground_boot();
+#endif
+
   // The 1 means it plays nice with the debugger
   watchdog_enable(WATCHDOG_MS, 1);
 }
@@ -412,7 +407,9 @@ void update_mode() {
         }
       } else if (millis_in_mode() >= UNKNOWN_WAIT) {
         push_mode(UNARMED);
+#ifndef TEST
         ground_boot();
+#endif
       }
 
       break;
@@ -923,6 +920,12 @@ void flash_save() {
 //  ready (this would mess with the flash write rate if not done well). The
 //  loop may be fast enough it doesn't matter
 void loop1() {
+#ifdef TEST
+  if (get_reboot()) {
+    watchdog_reboot(0, 0, 0);
+  }
+#endif
+
   // If we have reached critical failure then we return early
   if (board_mode == FAILURE) {
     do_failure();
@@ -961,11 +964,5 @@ void loop1() {
   }
 
   watchdog_update();
-
-#ifdef TEST
-  if (get_reboot()) {
-    watchdog_reboot(0, 0, 0);
-  }
-#endif
 }
 

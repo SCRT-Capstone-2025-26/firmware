@@ -45,7 +45,7 @@ def check_sample(log, data):
     return checker.check(log)
 
 
-def run_test():
+def run_test(_):
     acc_data = (0.0, 0.0, 9.81)
     hg_acc_data = (0.0, 0.0, 9.81)
 

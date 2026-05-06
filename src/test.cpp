@@ -81,5 +81,26 @@ void get_baro(float *pressure, float *temperature) {
 bool get_reboot() {
   return micros() >= max_steps * micros_per_step;
 }
+
+bool init_debug() {
+  // Get the start state
+  read_debug();
+
+  // If we are already rebooting then the init failed
+  return !get_reboot();
+}
+
+void read_debug() {
+  char desc = Serial.read();
+  switch (desc) {
+    case 'S':
+      break;
+    case 'D':
+      break;
+    default:
+      log_message("Debug read failure");
+      break;
+  }
+}
 #endif
 
