@@ -18,6 +18,6 @@ void get_gyro(Eigen::Vector3f *data, Micros time);
 
 void get_baro(float *pressure, float *temperature);
 
-void get_reboot();
+bool get_reboot();
 
 #endif

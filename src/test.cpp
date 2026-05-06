@@ -1,13 +1,14 @@
-//#ifdef TEST
 #include "test.h"
-#include "test_data.h"
 
 #include "util.h"
+#include "logging.h"
 
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <variant>
+#include <CircularBuffer.hpp>
 
 #define COMMAND_BUF_SIZE 256
 
@@ -16,7 +17,7 @@
 //  like acc, hg_acc, baro ... This would make communication faster
 //  if it is needed
 struct __attribute__((packed)) StateCommand {
-  Millis time;
+  Micros time;
 
   float acc_x;
   float acc_y;
@@ -50,7 +51,7 @@ struct __attribute__((packed)) StateCommand {
 };
 
 struct __attribute__((packed)) DoneCommand {
-  Millis time;
+  Micros time;
 };
 
 // The data should be packed as it it written directly to a buffer
@@ -61,11 +62,11 @@ typedef struct IndexedState {
   StateCommand c2;
 } IndexedState;
 
-#define INTERP_INDEX(name) linear_interp(time, index.c1.time, index.c2.time, index.c1.##name, index.c2.##name) + \
-  random(linear_interp(time, index.c1.time, index.c2.time, index.c1.##name##_noise, index.c2.##name##_noise))
+#define INTERP_INDEX(name) linear_interp(time, index.c1.time, index.c2.time, index.c1.name, index.c2.name) + \
+  random(linear_interp(time, index.c1.time, index.c2.time, index.c1.name##_noise, index.c2.name##_noise))
 
 std::atomic_bool done = false;
-std::atomic<Millis> done_time = 0;
+std::atomic<Micros> done_time = 0;
 // Using a non-locking circular buffer may be better
 semaphore_t buf_sem;
 CircularBuffer<StateCommand, COMMAND_BUF_SIZE> buf;
@@ -117,7 +118,7 @@ void get_acc(Eigen::Vector3f *data, Micros time) {
 }
 
 void get_hg_acc(Eigen::Vector3f *data, Micros time) {
-  Index index = time_index(time);
+  IndexedState index = time_index(time);
 
   data->x() = INTERP_INDEX(hg_acc_x);
   data->y() = INTERP_INDEX(hg_acc_y);
@@ -125,7 +126,7 @@ void get_hg_acc(Eigen::Vector3f *data, Micros time) {
 }
 
 void get_gyro(Eigen::Vector3f *data, Micros time) {
-  Index index = time_index(time);
+  IndexedState index = time_index(time);
 
   data->x() = INTERP_INDEX(gyro_x);
   data->y() = INTERP_INDEX(gyro_y);
@@ -134,18 +135,19 @@ void get_gyro(Eigen::Vector3f *data, Micros time) {
 
 // The temperature will be slightly off using this since they are actually sampled at different times
 void get_baro(float *pressure, float *temperature) {
-  Index index = time_index(micros());
+  Micros time = micros();
+  IndexedState index = time_index(time);
 
   *pressure = INTERP_INDEX(pressure);
   *temperature = INTERP_INDEX(temperature);
 }
 
 bool get_reboot() {
-  return done && millis() >= done_time;
+  return done && micros() >= done_time;
 }
 
 void init_debug() {
-  sem_init(&_rw_sem, 1, 1);
+  sem_init(&buf_sem, 1, 1);
 
   // Get the start state
   while (buf.size() == 0) {
@@ -164,7 +166,7 @@ void read_debug() {
       }
 
       Serial.read();
-      Serial.readBytes(&state_command, sizeof(state_command));
+      Serial.readBytes((char *)&state_command, sizeof(state_command));
 
       sem_acquire_blocking(&buf_sem);
       buf.unshift(state_command);
@@ -178,7 +180,7 @@ void read_debug() {
       }
 
       Serial.read();
-      Serial.readBytes(&done_command, sizeof(done_command));
+      Serial.readBytes((char *)&done_command, sizeof(done_command));
 
       done_time = done_command.time;
       done = true;
@@ -189,5 +191,4 @@ void read_debug() {
       break;
   }
 }
-#endif
 

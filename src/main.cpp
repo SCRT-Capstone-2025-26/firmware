@@ -194,6 +194,29 @@ bool try_power_servo() {
   return true;
 }
 
+// This is called when the board confirms that it has booted an is on the ground waiting to launch
+// It could take some time to run (because it waits for the log core), but it shouldn't because the
+//  log core should boot fast
+void ground_boot() {
+  log_message("Waiting on log core");
+  // Wait for the other core to finish booting
+  // This returns when the other core has booted with whether it has created log files
+  bool sd_failure = wait_log_boot();
+  // If there is an SD failure mark that (it is not critical though).
+  // Since the function returned the other core has booted and we can continue
+  log_message("Log core booted");
+  if (!sd_failure) { log_message("SD inited"); }
+  leds[LED_SD] = sd_failure ? LED_NEGATIVE : LED_POSITIVE;
+  led_show();
+
+  log_message("Clearing flash");
+  // We mess with the watchdog here since this could take a long time and we are on the ground and safe
+  watchdog_enable(WATCHDOG_MS_CLEAR_FLASH, 1);
+  // If flash isn't working we don't care
+  if (!clear_flash_buf()) { note_error("Flash clear Failed", DO_NOTHING_ERR); }
+  watchdog_enable(WATCHDOG_MS, 1);
+}
+
 // NOTE: Init values are temporary and will be determined by data later
 void setup1() {
 #ifdef DEBUG
@@ -361,29 +384,6 @@ void setup1() {
 #endif
 
   // The 1 means it plays nice with the debugger
-  watchdog_enable(WATCHDOG_MS, 1);
-}
-
-// This is called when the board confirms that it has booted an is on the ground waiting to launch
-// It could take some time to run (because it waits for the log core), but it shouldn't because the
-//  log core should boot fast
-void ground_boot() {
-  log_message("Waiting on log core");
-  // Wait for the other core to finish booting
-  // This returns when the other core has booted with whether it has created log files
-  bool sd_failure = wait_log_boot();
-  // If there is an SD failure mark that (it is not critical though).
-  // Since the function returned the other core has booted and we can continue
-  log_message("Log core booted");
-  if (!sd_failure) { log_message("SD inited"); }
-  leds[LED_SD] = sd_failure ? LED_NEGATIVE : LED_POSITIVE;
-  led_show();
-
-  log_message("Clearing flash");
-  // We mess with the watchdog here since this could take a long time and we are on the ground and safe
-  watchdog_enable(WATCHDOG_MS_CLEAR_FLASH, 1);
-  // If flash isn't working we don't care
-  if (!clear_flash_buf()) { note_error("Flash clear Failed", DO_NOTHING_ERR); }
   watchdog_enable(WATCHDOG_MS, 1);
 }
 

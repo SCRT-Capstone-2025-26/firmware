@@ -27,7 +27,7 @@
 
 // This is to feed the Arduino stuff I believe
 //  that runs outside of the loop. I don't think this is needed
-#define TEST
+#ifdef TEST
 #define EVENT_TIMEOUT 1
 #else
 #define EVENT_TIMEOUT 5
@@ -273,7 +273,7 @@ void loop() {
     }
   }
 
-#define TEST
+#ifdef TEST
   read_debug();
 #endif
 
