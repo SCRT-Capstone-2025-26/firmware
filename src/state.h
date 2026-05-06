@@ -87,6 +87,8 @@
 #define START_V_ERROR 1.0f
 
 // This is the values that the rocket sets the estimated values to if it is booted during flight and there is no flash history
+// This are in meters and meters per second respectively
+// Testing has shown they don't matter much
 // TODO: Determine values
 #define UNK_START_HEIGHT 1000.0f
 #define UNK_START_VEL    100.0f

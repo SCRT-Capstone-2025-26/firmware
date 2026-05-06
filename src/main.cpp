@@ -53,13 +53,16 @@
 #define ACC_HIGH_G_FS 64
 
 // We treat very large or small values as errors to avoid hitting an extreme tail in the kalman filter
+// Currently millibars
 // TODO: Detrmine these
 #define MAX_PRES 3000.0f
 #define MIN_PRES 0.0f
 
+// Degrees C
 #define MAX_TEMP 100.0f
 #define MIN_TEMP -100.0f
 
+// This is Newtons squared (it is the max acceleration in Newtons squared)
 // TODO: Add gyro
 #define MAX_ACC_SQR_MAG 1000000.0f
 
@@ -84,10 +87,12 @@
 
 #define FIFO_WARNING_SAMPLES 255
 
+// This is in milliamps, but doesn't seem to protect anything anyways
 // TODO: Determine
 #define MAX_CURRENT 2000.0f
 
 #define MAIN_SERVO SERVO_5
+#define MAIN_SERVO_CURRENT CURRENT_5_ID
 
 enum BaroState {
   IDLE,
@@ -113,7 +118,7 @@ Millis flight_servo_last_ms;
 Micros baro_read_time;
 BaroState baro_state = IDLE;
 
-INA745 current_sensor = INA745(CURRENT_5_ID, &Wire);
+INA745 current_sensor = INA745(MAIN_SERVO_CURRENT, &Wire);
 
 // The mode of the accelerometer
 // We stay in high g mode and only switch to low g after launch
@@ -152,11 +157,13 @@ void init_pins() {
   // The others can just be 0
   servo.setPWM();
   // No floating pins for levelshifter
-  pinMode(SERVO_1, OUTPUT);  digitalWrite(SERVO_1, LOW);
-  pinMode(SERVO_2, OUTPUT);  digitalWrite(SERVO_2, LOW);
-  pinMode(SERVO_3, OUTPUT);  digitalWrite(SERVO_3, LOW);
-  pinMode(SERVO_4, OUTPUT);  digitalWrite(SERVO_4, LOW);
-  pinMode(SERVO_6, OUTPUT);  digitalWrite(SERVO_6, LOW);
+  int servos[] = { SERVO_1, SERVO_2, SERVO_3, SERVO_4, SERVO_5, SERVO_6 };
+  for (int i = 0; i < sizeof(servos) / sizeof(*servos); i++) {
+    if (i == MAIN_SERVO) { continue; }
+
+    pinMode(i, OUTPUT);  digitalWrite(i, LOW);
+  }
+
   pinMode(LED_DATA, OUTPUT); digitalWrite(LED_DATA, LOW);
 
   pinMode(MOSI, OUTPUT);
@@ -510,7 +517,12 @@ void update_servo(int32_t current_milliamps) {
     servo_percent = max(min(servo_percent, 1.0f), 0.0f);
   }
 
-  // TODO: Maybe rolling average
+  // This currently doesn't seem to provide any protection, because the sensor
+  //  or control loop is too slow to work anyway
+  // TODO: Look into the importance of this (it may work, but that needs to be checked)
+  //  I don't like have conditions without a rolling average because this could lead to
+  //  jittering if repeatly falsly triggered however I don't think we can affored latency
+  //  on this
   if (current_milliamps > MAX_CURRENT) {
     servo_percent = 0.0f;
   }
