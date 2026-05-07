@@ -2,6 +2,8 @@
 
 #include "util.h"
 #include "logging.h"
+#include "hardware/timer.h"
+#include "hardware/regs/timer.h"
 
 #include <atomic>
 #include <cstddef>
@@ -65,6 +67,7 @@ typedef struct IndexedState {
 #define INTERP_INDEX(name) linear_interp(time, index.c1.time, index.c2.time, index.c1.name, index.c2.name) + \
   random(linear_interp(time, index.c1.time, index.c2.time, index.c1.name##_noise, index.c2.name##_noise))
 
+Micros offset = 0;
 std::atomic_bool done = false;
 std::atomic<Micros> done_time = 0;
 // Using a non-locking circular buffer may be better
@@ -79,7 +82,7 @@ IndexedState time_index(Micros time) {
   // Binary search is now cringe mostly cause this buffer contains way more
   //  non-important states since it only gets cleared when full
   for (size_t i = 0; i < buf.size(); i++) {
-    if (buf[i].time >= time) {
+    if (buf[i].time >= time + offset) {
       index.c1 = buf[i];
       index.c2 = buf[max(i, 1) - 1];
     }
@@ -143,7 +146,7 @@ void get_baro(float *pressure, float *temperature) {
 }
 
 bool get_reboot() {
-  return done && micros() >= done_time;
+  return done && micros() >= done_time + offset;
 }
 
 void send_ack() {
@@ -159,10 +162,12 @@ void init_debug() {
   while (buf.size() == 0) {
     read_debug();
   }
+
+  offset = micros();
 }
 
 void read_debug() {
-  char desc = Serial.peek();
+  int desc = Serial.peek();
   switch (desc) {
     case 'S':
       StateCommand state_command;
@@ -195,6 +200,8 @@ void read_debug() {
     case 'P':
       Serial.read();
       send_ack();
+      break;
+    case -1:
       break;
     default:
       Serial.read();

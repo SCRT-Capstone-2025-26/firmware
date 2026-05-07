@@ -1,5 +1,5 @@
 from log_check import LogExpectation, LogChecker
-from tests.run_test import Done, State
+from run_test import Done, State
 
 checker = LogChecker()
 
@@ -45,17 +45,21 @@ def check_sample(log, data):
     return checker.check(log)
 
 
-def run_test(_):
+def run_test(dm):
     acc_data = (0.0, 0.0, 9.81)
+    acc_noise = (0.0, 0.0, 0.0)
     hg_acc_data = (0.0, 0.0, 9.81)
+    hg_acc_noise = (0.0, 0.0, 0.0)
 
     gyro_data = (0.0, 0.0, 0.0)
+    gyro_noise = (0.0, 0.0, 0.0)
 
     baro_data = (0.0, 0.0)
+    baro_noise = (0.0, 0.0)
 
     # Since the code does linear interpolation this will make it always have the given state
-    yield State(0, acc_data, hg_acc_data, gyro_data, baro_data)
-    yield State(1, acc_data, hg_acc_data, gyro_data, baro_data)
+    dm.send(State(0, acc_data, acc_noise, hg_acc_data, hg_acc_noise, gyro_data, gyro_noise, baro_data, baro_noise))
+    dm.send(State(0, acc_data, acc_noise, hg_acc_data, hg_acc_noise, gyro_data, gyro_noise, baro_data, baro_noise))
 
-    yield Done(3)
+    dm.send(Done(5 * 1000 * 1000))
 

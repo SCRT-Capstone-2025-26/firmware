@@ -20,7 +20,7 @@
 #define ROT_RATE_LIM  50
 
 // The size of the event buffer
-#define EVENT_BUF_LIMIT 255
+#define EVENT_BUF_LIMIT 1024
 // The amount of the event buffer filled where log messages stop being added
 //  this prevents log spam from stopping data being written in theory
 #define LOG_BUF_LIMIT   (EVENT_BUF_LIMIT / 2)
