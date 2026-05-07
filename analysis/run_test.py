@@ -8,7 +8,6 @@ import importlib.util
 import pathlib
 import time
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 
 import parse
 
@@ -70,7 +69,7 @@ class DataManager:
 
     def _setup_canvas(self):
         count = len(self.types_to_plot)
-        self.fig, axes_list = plt.subplots(count, 1, sharex=True)
+        self.fig, axes_list = plt.subplots(count, 1, sharex=True, figsize=(9, 9))
         if count == 1: axes_list = [axes_list]
 
         for ax, typ in zip(axes_list, self.types_to_plot):
@@ -95,7 +94,7 @@ class DataManager:
 
         # Snapshot for thread safety and performance
         # Using a sliding window of the last 400 points
-        current_snapshot = self.data[-400:] 
+        current_snapshot = self.data[-800:] 
 
         for typ in self.types_to_plot:
             # Filter items of this type: [(time, datum), ...]
@@ -117,8 +116,8 @@ class DataManager:
         self.fig.canvas.flush_events()
 
 
-    def __enter__(self):
-        self.types_to_plot = [parse.Acc]
+    def start(self):
+        self.types_to_plot = [parse.Acc, parse.FilterState, parse.Servo]
         self.running = False
         self.data = []
         self.lines = {}
@@ -134,7 +133,7 @@ class DataManager:
         return self
 
 
-    def __exit__(self, _1, _2, _3):
+    def stop(self, _1, _2, _3):
         plt.ioff()
 
         if not self.running:
@@ -162,12 +161,14 @@ spec.loader.exec_module(test_gen)
 sys.path.pop()
 
 # TODO: Fix noise
-with DataManager(args.port) as dm:
-    dm.ser.write(b'Test 1\0')
+dm = DataManager(args.port).start()
+dm.ser.write(b'Test 1\0')
 
-    test_gen.run_test(dm)
+test_gen.run_test(dm)
 
-    while dm.running:
-        dm.update()
-        time.sleep(0.01)
+while dm.running:
+    dm.update()
+    time.sleep(0.01)
+
+dm.stop(None, None, None)
 

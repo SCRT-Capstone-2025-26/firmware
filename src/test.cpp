@@ -64,8 +64,10 @@ typedef struct IndexedState {
   StateCommand c2;
 } IndexedState;
 
-#define INTERP_INDEX(name) linear_interp(time, index.c1.time, index.c2.time, index.c1.name, index.c2.name) + \
-  random(linear_interp(time, index.c1.time, index.c2.time, index.c1.name##_noise, index.c2.name##_noise))
+// #define INTERP_INDEX(name) linear_interp(time, index.c1.time, index.c2.time, index.c1.name, index.c2.name) + \
+//   random(linear_interp(time, index.c1.time, index.c2.time, index.c1.name##_noise, index.c2.name##_noise))
+
+#define INTERP_INDEX(name) index.c1.name
 
 Micros offset = 0;
 std::atomic_bool done = false;
@@ -79,14 +81,17 @@ IndexedState time_index(Micros time) {
   IndexedState index;
 
   sem_acquire_blocking(&buf_sem);
+  index.c1 = buf[0];
+  index.c2 = buf[0];
   // Binary search is now cringe mostly cause this buffer contains way more
   //  non-important states since it only gets cleared when full
-  for (size_t i = 0; i < buf.size(); i++) {
-    if (buf[i].time >= time + offset) {
-      index.c1 = buf[i];
-      index.c2 = buf[max(i, 1) - 1];
-    }
-  }
+  // for (size_t i = 0; i < buf.size(); i++) {
+  //   if (buf[i].time + offset >= time) {
+  //     index.c1 = buf[i];
+  //     index.c2 = buf[max(i, 1) - 1];
+  //     break;
+  //   }
+  // }
   sem_release(&buf_sem);
 
   return index;
