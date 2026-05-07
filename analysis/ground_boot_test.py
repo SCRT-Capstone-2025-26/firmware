@@ -47,9 +47,9 @@ def check_sample(log, data):
 
 def run_test(dm):
     acc_data = (0.0, 0.0, 9.81)
-    acc_noise = (0.0, 0.0, 0.0)
+    acc_noise = (0.0, 0.0, 1.0)
     hg_acc_data = (0.0, 0.0, 9.81)
-    hg_acc_noise = (0.0, 0.0, 0.0)
+    hg_acc_noise = (0.0, 0.0, 1.0)
 
     gyro_data = (0.0, 0.0, 0.0)
     gyro_noise = (0.0, 0.0, 0.0)
@@ -59,7 +59,7 @@ def run_test(dm):
 
     # Since the code does linear interpolation this will make it always have the given state
     dm.send(State(0, acc_data, acc_noise, hg_acc_data, hg_acc_noise, gyro_data, gyro_noise, baro_data, baro_noise))
-    dm.send(State(0, acc_data, acc_noise, hg_acc_data, hg_acc_noise, gyro_data, gyro_noise, baro_data, baro_noise))
+    dm.send(State(1, acc_data, acc_noise, hg_acc_data, hg_acc_noise, gyro_data, gyro_noise, baro_data, baro_noise))
 
     dm.send(Done(5 * 1000 * 1000))
 

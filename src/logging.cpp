@@ -219,9 +219,13 @@ void write_log(String content) {
     log_file.println(content);
   }
 
+#ifdef TEST
   Serial.write('L');
+#endif
   Serial.println(content);
+#ifdef TEST
   Serial.write('\0');
+#endif
 }
 
 // Handles a log event converting it into something usable
@@ -240,26 +244,26 @@ void handle_log_event(LogEvent event) {
   write_log("[time: " + String(event.timestamp) + "ms, core: " + String(event.core) + "] " + content);
 }
 
-void handle_calib(DataEvent data) {
-  if (!sd_failure) {
-    const auto [id, size] = match(data.value,
-      [](Acc data) { return std::make_tuple('A', sizeof(data)); },
-      [](Gyro data) { return std::make_tuple('G', sizeof(data)); },
-      [](Baro data) { return std::make_tuple('B', sizeof(data)); },
-      [](Servo data) { return std::make_tuple('S', sizeof(data)); },
-      [](Current data) { return std::make_tuple('C', sizeof(data)); },
-      [](FilterState data) { return std::make_tuple('F', sizeof(data)); },
-      [](RotState data) { return std::make_tuple('R', sizeof(data)); }
-    );
+void handle_data(DataEvent data) {
+  const auto [id, size] = match(data.value,
+    [](Acc data) { return std::make_tuple('A', sizeof(data)); },
+    [](Gyro data) { return std::make_tuple('G', sizeof(data)); },
+    [](Baro data) { return std::make_tuple('B', sizeof(data)); },
+    [](Servo data) { return std::make_tuple('S', sizeof(data)); },
+    [](Current data) { return std::make_tuple('C', sizeof(data)); },
+    [](FilterState data) { return std::make_tuple('F', sizeof(data)); },
+    [](RotState data) { return std::make_tuple('R', sizeof(data)); }
+  );
 
+  if (!sd_failure) {
     data_file.write(id);
     data_file.write(&data.timestamp, sizeof(data.timestamp));
     data_file.write(&data.value, size);
-
-    Serial.write(id);
-    Serial.write((char *)&data.timestamp, sizeof(data.timestamp));
-    Serial.write((char *)&data.value, size);
   }
+
+  Serial.write(id);
+  Serial.write((char *)&data.timestamp, sizeof(data.timestamp));
+  Serial.write((char *)&data.value, size);
 }
 
 // Just empties the log queue
@@ -299,6 +303,6 @@ void loop() {
   }
 
   // I don't know why the lambdas are needed
-  match(event, [](LogEvent event) { handle_log_event(event); }, [](DataEvent event) { handle_calib(event); });
+  match(event, [](LogEvent event) { handle_log_event(event); }, [](DataEvent event) { handle_data(event); });
 }
 

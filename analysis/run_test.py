@@ -7,6 +7,8 @@ import sys
 import importlib.util
 import pathlib
 import time
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 
 import parse
 
@@ -31,6 +33,7 @@ send_types = {
     Ping: (None, b'P'),
 }
 
+# TODO: The plot is not great code and should be fixed
 class DataManager:
     def __init__(self, port):
         self.port = port
@@ -56,16 +59,73 @@ class DataManager:
     def _run(self):
         try:
             for item in parse.read_iter(self.ser):
-                print(item)
                 if item[0] is None:
                     print(item[1])
 
                 self.data.append(item)
         except serial.serialutil.SerialException:
+            # TODO: Fix
             self.running = False
 
 
+    def _setup_canvas(self):
+        count = len(self.types_to_plot)
+        self.fig, axes_list = plt.subplots(count, 1, sharex=True)
+        if count == 1: axes_list = [axes_list]
+
+        for ax, typ in zip(axes_list, self.types_to_plot):
+            self.axes[typ] = ax
+            self.lines[typ] = []
+            
+            # Create a line for every field in the tuple (e.g., x, y, z)
+            for field_name in typ._fields:
+                line, = ax.plot([], [], label=field_name)
+                self.lines[typ].append(line)
+            
+            ax.set_title(typ.__name__)
+            ax.legend(loc='upper right', fontsize='x-small')
+
+        self.fig.show()
+        plt.pause(0.1)
+
+    def update(self):
+        if not self.data:
+            self.fig.canvas.flush_events()
+            return
+
+        # Snapshot for thread safety and performance
+        # Using a sliding window of the last 400 points
+        current_snapshot = self.data[-400:] 
+
+        for typ in self.types_to_plot:
+            # Filter items of this type: [(time, datum), ...]
+            typ_items = [it for it in current_snapshot if isinstance(it[1], typ)]
+            if not typ_items: continue
+
+            times, data_objects = zip(*typ_items)
+            
+            # Update each line (field) in this plot
+            for i, line in enumerate(self.lines[typ]):
+                # Extract the i-th value from the data tuple
+                y_values = [obj[i] for obj in data_objects]
+                line.set_data(times, y_values)
+            
+            self.axes[typ].relim()
+            self.axes[typ].autoscale_view()
+
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+
+
     def __enter__(self):
+        self.types_to_plot = [parse.Acc]
+        self.running = False
+        self.data = []
+        self.lines = {}
+        self.axes = {}
+        plt.ion()
+        self._setup_canvas()
+
         self.ser = serial.Serial(self.port, 115200)
         self.data = []
         self.running = True
@@ -75,6 +135,11 @@ class DataManager:
 
 
     def __exit__(self, _1, _2, _3):
+        plt.ioff()
+
+        if not self.running:
+            return
+
         self.running = False
 
         if self.ser.is_open:
@@ -96,11 +161,13 @@ test_gen = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(test_gen)
 sys.path.pop()
 
+# TODO: Fix noise
 with DataManager(args.port) as dm:
     dm.ser.write(b'Test 1\0')
 
     test_gen.run_test(dm)
 
     while dm.running:
-        time.sleep(1)
+        dm.update()
+        time.sleep(0.01)
 
