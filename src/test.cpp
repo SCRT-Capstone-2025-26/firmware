@@ -155,9 +155,6 @@ void send_ack() {
 void init_debug() {
   sem_init(&buf_sem, 1, 1);
 
-  // Send an the that board is ready for debugging
-  send_ack();
-
   // Get the start state
   while (buf.size() == 0) {
     read_debug();
@@ -199,8 +196,8 @@ void read_debug() {
       Serial.read();
       send_ack();
       break;
-
     default:
+      Serial.read();
       log_message("Debug read failure");
       break;
   }

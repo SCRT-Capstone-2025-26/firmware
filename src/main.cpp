@@ -355,7 +355,6 @@ void setup1() {
   Wire.setClock(100000);
   Wire.begin();
 
-
   bool current_sens_failed = false;
   if (current_sensor.begin() != INA_SUCCESS) {
     log_message("Current sensor init failed");
@@ -363,6 +362,10 @@ void setup1() {
   }
 
   leds[LED_CURRENT] = current_sens_failed ? LED_NEGATIVE : LED_POSITIVE;
+
+#ifdef TEST
+  ground_boot();
+#endif
 
   if (baro_init && imu_init && !current_sens_failed) {
     // The board is now ready
@@ -378,10 +381,6 @@ void setup1() {
     // The board has failed to init
     note_error("Init failed", FAIL_NOW_ERR);
   }
-
-#ifdef TEST
-  ground_boot();
-#endif
 
   // The 1 means it plays nice with the debugger
   watchdog_enable(WATCHDOG_MS, 1);

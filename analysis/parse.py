@@ -21,13 +21,32 @@ item_types = {
     b'S': ('f', Servo),
     b'C': ('HiiI', Current),
     b'F': ('ffffff', FilterState),
-    b'R': ('ffff', RotState)
+    b'R': ('ffff', RotState),
 }
 
 # Can unpack_from be used?
 def read_item(file):
     id = file.read(1)
     if id == b'':
+        return None
+
+    # An ack
+    if id == b'K':
+        return (None, file.read(2) == b'67')
+
+    # A string
+    if id == b'L':
+        s = b''
+        while True:
+            c = file.read(1)
+            if c == b'\0':
+                break
+
+            s += c
+
+        return (None, s)
+
+    if not id in item_types:
         return None
 
     packing, item_type = item_types[id]
@@ -42,8 +61,12 @@ def read_item(file):
 def read_iter(file):
     while True:
         item = read_item(file)
+        # We keep skipping chars until we hit an item
+        #  this means that the first few items may be bad
+        #  readings, but it will settle to something valid
+        #  eventually
         if item is None:
-            break
+            continue
 
         yield item
 

@@ -221,6 +221,7 @@ void write_log(String content) {
 
   Serial.write('L');
   Serial.println(content);
+  Serial.write('\0');
 }
 
 // Handles a log event converting it into something usable
@@ -256,8 +257,8 @@ void handle_calib(DataEvent data) {
     data_file.write(&data.value, size);
 
     Serial.write(id);
-    Serial.write(&data.timestamp, sizeof(data.timestamp));
-    Serial.write(&data.value, size);
+    Serial.write((char *)&data.timestamp, sizeof(data.timestamp));
+    Serial.write((char *)&data.value, size);
   }
 }
 
