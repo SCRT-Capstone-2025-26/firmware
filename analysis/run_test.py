@@ -6,8 +6,8 @@ import serial
 import sys
 import importlib.util
 import pathlib
-import time
 import matplotlib.pyplot as plt
+import time
 
 import parse
 
@@ -53,12 +53,14 @@ class DataManager:
         self.port = port
         self.running = False
 
+
     def get_current_data(self):
         if not self.running:
             raise Exception("Manager not started or stopped")
 
         # Shallow copy
         return self.data[:]
+
 
     def send(self, item):
         layout, id = send_types[type(item)]
@@ -67,16 +69,14 @@ class DataManager:
         if layout is not None:
             self.ser.write(struct.pack(layout, *flatten(item)))
 
-    def _run(self):
-        try:
-            for item in parse.read_iter(self.ser):
-                if item[0] is None:
-                    print(item[1])
 
-                self.data.append(item)
-        except serial.serialutil.SerialException:
-            # TODO: Fix
-            self.running = False
+    def _run(self):
+        for item in parse.read_iter(self.ser):
+            if item[0] is None:
+                print(item[1])
+
+            self.data.append(item)
+
 
     def _setup_canvas(self):
         count = len(self.types_to_plot)
@@ -99,6 +99,8 @@ class DataManager:
         self.fig.show()
         plt.pause(0.1)
 
+
+    # TODO: auto update
     def update(self):
         if not self.data:
             self.fig.canvas.flush_events()
@@ -106,8 +108,7 @@ class DataManager:
 
         # Snapshot for thread safety and performance
         # Using a sliding window of the last 400 points
-        current_snapshot = self.data
-
+        current_snapshot = self.data[:]
         for typ in self.types_to_plot:
             # Filter items of this type: [(time, datum), ...]
             typ_items = [it for it in current_snapshot if isinstance(it[1], typ)]
@@ -128,9 +129,9 @@ class DataManager:
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
+
     def start(self):
-        self.types_to_plot = [parse.FilterState]
-        self.running = False
+        self.types_to_plot = [parse.Acc, parse.Servo, parse.FilterState]
         self.data = []
         self.lines = {}
         self.axes = {}
@@ -138,13 +139,14 @@ class DataManager:
         self._setup_canvas()
 
         self.ser = serial.Serial(self.port, 115200)
-        self.data = []
-        self.running = True
 
+        self.running = True
         Thread(target=self._run).start()
-        return self
+
 
     def stop(self, _1, _2, _3):
+        self.send(Done(0))
+
         plt.ioff()
 
         if not self.running:
@@ -166,21 +168,17 @@ args = parser.parse_args()
 # It would probably be more correct to pop some stuff from sys path and then re add it
 test_path = pathlib.Path(args.test)
 sys.path.append(str(test_path.parent))
-spec = importlib.util.spec_from_file_location("test_gen", test_path)
-test_gen = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(test_gen)
+spec = importlib.util.spec_from_file_location("test_run", test_path)
+test_run = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(test_run)
 sys.path.pop()
 
+# TODO: A with statement should be used
 # TODO: Fix noise
-dm = DataManager(args.port).start()
+dm = DataManager(args.port)
+dm.start()
 dm.ser.write(b"Test 1\0")
 
-test_gen.run_test(dm)
-
-while dm.running:
-    dm.fig.canvas.draw()
-    dm.fig.canvas.flush_events()
-    # dm.update()
-    time.sleep(0.01)
+test_run.run_test(dm)
 
 dm.stop(None, None, None)
