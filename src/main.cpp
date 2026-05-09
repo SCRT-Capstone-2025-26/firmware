@@ -40,7 +40,7 @@
 //  This formula assumes a sample every second the real formula does not
 // To prevent jittery servo
 // TODO: Determine
-#define SERVO_SMOOTH 0.8
+#define SERVO_SMOOTH 0.1
 // Get servo smooth into more favourable units
 // This should be compile time const
 #define SERVO_SMOOTH_LN_MS (std::log(SERVO_SMOOTH) * 0.001f)

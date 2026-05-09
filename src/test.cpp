@@ -64,10 +64,8 @@ typedef struct IndexedState {
   StateCommand c2;
 } IndexedState;
 
-// #define INTERP_INDEX(name) linear_interp(time, index.c1.time, index.c2.time, index.c1.name, index.c2.name) + \
-//   random(linear_interp(time, index.c1.time, index.c2.time, index.c1.name##_noise, index.c2.name##_noise))
-
-#define INTERP_INDEX(name) index.c1.name
+#define INTERP_INDEX(name) linear_interp(time, index.c1.time, index.c2.time, index.c1.name, index.c2.name) + \
+  random(linear_interp(time, index.c1.time, index.c2.time, index.c1.name##_noise, index.c2.name##_noise))
 
 Micros offset = 0;
 std::atomic_bool done = false;
@@ -81,17 +79,23 @@ IndexedState time_index(Micros time) {
   IndexedState index;
 
   sem_acquire_blocking(&buf_sem);
-  index.c1 = buf[0];
-  index.c2 = buf[0];
   // Binary search is now cringe mostly cause this buffer contains way more
   //  non-important states since it only gets cleared when full
-  // for (size_t i = 0; i < buf.size(); i++) {
-  //   if (buf[i].time + offset >= time) {
-  //     index.c1 = buf[i];
-  //     index.c2 = buf[max(i, 1) - 1];
-  //     break;
-  //   }
-  // }
+  for (size_t i = 1; i < buf.size(); i++) {
+    if (buf[i].time <= time) {
+      index.c1 = buf[i];
+
+      if (i == 0) {
+        // Prevent a divide by zero on the intero
+        index.c2 = buf[i];
+        index.c2.time += 1;
+      } else {
+        index.c2 = buf[i - 1];
+      }
+
+      break;
+    }
+  }
   sem_release(&buf_sem);
 
   return index;
@@ -118,6 +122,8 @@ float random(float scale) {
 }
 
 void get_acc(Eigen::Vector3f *data, Micros time) {
+  // The fifo could have old stuff
+  if (time < offset) { time = 0; } else { time -= offset; }
   IndexedState index = time_index(time);
 
   data->x() = INTERP_INDEX(acc_x);
@@ -126,6 +132,8 @@ void get_acc(Eigen::Vector3f *data, Micros time) {
 }
 
 void get_hg_acc(Eigen::Vector3f *data, Micros time) {
+  // The fifo could have old stuff
+  if (time < offset) { time = 0; } else { time -= offset; }
   IndexedState index = time_index(time);
 
   data->x() = INTERP_INDEX(hg_acc_x);
@@ -134,6 +142,8 @@ void get_hg_acc(Eigen::Vector3f *data, Micros time) {
 }
 
 void get_gyro(Eigen::Vector3f *data, Micros time) {
+  // The fifo could have old stuff
+  if (time < offset) { time = 0; } else { time -= offset; }
   IndexedState index = time_index(time);
 
   data->x() = INTERP_INDEX(gyro_x);
@@ -143,7 +153,7 @@ void get_gyro(Eigen::Vector3f *data, Micros time) {
 
 // The temperature will be slightly off using this since they are actually sampled at different times
 void get_baro(float *pressure, float *temperature) {
-  Micros time = micros();
+  Micros time = micros() - offset;
   IndexedState index = time_index(time);
 
   *pressure = INTERP_INDEX(pressure);
@@ -151,7 +161,7 @@ void get_baro(float *pressure, float *temperature) {
 }
 
 bool get_reboot() {
-  return done && micros() >= done_time + offset;
+  return done && micros() - offset >= done_time;
 }
 
 void send_ack() {
