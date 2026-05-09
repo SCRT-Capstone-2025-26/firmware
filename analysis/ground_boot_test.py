@@ -1,5 +1,5 @@
 from log_check import LogExpectation, LogChecker
-from run_test import Done, State
+from test_comm import Done, State
 
 checker = LogChecker()
 

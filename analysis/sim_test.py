@@ -1,4 +1,4 @@
-from run_test import State
+from test_comm import State
 from scrt.sim import Sim
 import time
 import math
@@ -11,13 +11,13 @@ def h_to_pres(height):
     return 1013.5 * ((1 - (height / 44307.694)) ** (1 / 0.190284))
 
 
-def get_sensor_data(sim, no_acc=False):
+def get_sensor_data(sim, ground=False):
     h, _, theta = sim.curr_state
 
     baro_data = (h_to_pres(h), 0.0)
 
-    if no_acc:
-        current_accel = 0
+    if ground:
+        current_accel = 9.81
     else:
         current_accel = sim.accel(sim.curr_time, sim.curr_state, sim.ext)
 
@@ -40,7 +40,7 @@ def run_test(dm):
     sim = Sim()
     sim.set_state(max_step=0.1)
 
-    start = get_sensor_data(sim)
+    start = get_sensor_data(sim, True)
     dm.send(State(0, **start))
     st = time.time()
     dm.send(State(5 * 1000 * 1000, **start))
