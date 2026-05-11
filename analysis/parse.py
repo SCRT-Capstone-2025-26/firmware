@@ -21,7 +21,7 @@ item_types = {
     b'S': ('f', Servo),
     b'C': ('HiiI', Current),
     b'F': ('ffffff', FilterState),
-    b'R': ('ffff', RotState),
+    b'R': ('ffff', RotState)
 }
 
 # Can unpack_from be used?

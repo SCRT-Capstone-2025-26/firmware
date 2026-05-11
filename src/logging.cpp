@@ -27,11 +27,15 @@
 
 // This is to feed the Arduino stuff I believe
 //  that runs outside of the loop. I don't think this is needed
+<<<<<<< HEAD
 #ifdef TEST
 #define EVENT_TIMEOUT 1
 #else
 #define EVENT_TIMEOUT 5
 #endif
+=======
+#define EVENT_TIMEOUT 5
+>>>>>>> main
 
 // This file handles the code that runs on the other core and handles the logging for Beavs
 

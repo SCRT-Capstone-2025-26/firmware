@@ -40,7 +40,7 @@
 //  This formula assumes a sample every second the real formula does not
 // To prevent jittery servo
 // TODO: Determine
-#define SERVO_SMOOTH 0.1
+#define SERVO_SMOOTH 0.8
 // Get servo smooth into more favourable units
 // This should be compile time const
 #define SERVO_SMOOTH_LN_MS (std::log(SERVO_SMOOTH) * 0.001f)
@@ -72,8 +72,9 @@
 // TODO: Determine value
 #define ACC_HIGH_G_SWITCH (ACC_FS * GRAVITY_ACC * 0.8f)
 
-#define ARM_ON  LOW
-#define ARM_OFF HIGH
+// high -> pulled up/not tied to ground -> on/armed; low -> tag not removed -> off/unarmed
+#define ARM_ON  HIGH
+#define ARM_OFF LOW
 
 // Clearing flash is quite slow (the core does feed the watchdog while clearing)
 //  but the minimum sector clear can be like 100ms I think at worst case it 
@@ -170,7 +171,8 @@ void init_pins() {
   pinMode(MISO, INPUT);
   pinMode(SCK, OUTPUT);
 
-  pinMode(ARM_SWITCH, INPUT);
+  // we have to pull up the arm switch ourselves
+  pinMode(ARM_SWITCH, INPUT_PULLUP);
   pinMode(BATTERY_SENSE, INPUT);
 
   pinMode(BAROMETER_CS, OUTPUT);
@@ -919,6 +921,46 @@ void flash_save() {
 //  ready (this would mess with the flash write rate if not done well). The
 //  loop may be fast enough it doesn't matter
 void loop1() {
+  // If we have reached critical failure then we return early
+  if (board_mode == FAILURE) {
+    do_failure();
+    return;
+  }
+
+  // Sample the sensors (this updates the relevant state object)
+  // The barometer only provides samples at the odr sampling rate
+  //  so this function just advances the sampling process if possible
+  // We sample the imu first since it contains a buffer of all the samples
+  //  and we want the samples fed to the flight state roughly in order
+  //  so we want the buffer to be empty when reading the pressure sensor
+  //  to ensure it is in order roughly
+  sample_imu();
+  step_sample_baro();
+  // This is current only used for logging, but may be used to increase boot speed in UNKNOWN mode,
+  //  by sensing a safe time to activate the servo
+  int32_t current = sample_current();
+
+  // Update the servo based on the state object
+  // Current can disable servo if too high
+  update_servo(current);
+
+  // This is slow from UNKNOWN to UNARMED
+  //  however we don't care since it is on the ground flight
+  //  state and so losing accelerometer data in the fifo
+  //  doesn't really matter
+  update_mode();
+
+  // Save to the flash buffer if needed this is not instant, but quite fast
+  flash_save();
+
+  if (board_mode == FLYING) {
+    write_data(FilterState{flight_state.state(0), flight_state.state(1), flight_state.cov(0, 0), flight_state.cov(1, 1), flight_state.cov(0, 1), flight_state.cos_zenith});
+    write_data(RotState{flight_state.rot.x(), flight_state.rot.y(), flight_state.rot.z(), flight_state.rot.w()});
+  }
+
+  watchdog_update();
+
+>>>>>>> main
 #ifdef TEST
   if (get_reboot()) {
     watchdog_reboot(0, 0, 0);
