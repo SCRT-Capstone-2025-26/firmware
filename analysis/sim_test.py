@@ -1,5 +1,6 @@
 from test_comm import State
 from scrt.sim import Sim
+import numpy as np
 import time
 import math
 
@@ -24,12 +25,14 @@ def get_sensor_data(sim, ground=False):
     acc_data = (0.0, current_accel * math.sin(theta), current_accel * math.cos(theta))
     hg_acc_data = acc_data
 
+    dzenith = sim.dangle(sim.curr_time, sim.curr_state)
+
     return {
         "acc": acc_data,
         "acc_noise": (0.1, 0.1, 0.1),
         "hg_acc": hg_acc_data,
         "hg_acc_noise": (0.1, 0.1, 0.1),
-        "gyro": (0.0, 0.0, 0.0),
+        "gyro": (dzenith, 0.0, 0.0),
         "gyro_noise": (1.0, 1.0, 1.0),
         "baro": baro_data,
         "baro_noise": (0.3, 0.0)
@@ -42,9 +45,9 @@ def run_test(dm):
 
     sim = Sim()
     # 261 low, 281 high
-    sim.set_state(time=rst, max_step=0.1)
+    sim.set_state(state=(0, 0, np.deg2rad(4)), time=rst, max_step=0.1)
     # ~0.75 gets there
-    sim.factor = 0.78
+    sim.factor = 0.81
 
     start = get_sensor_data(sim, True)
     dm.send(State(0, **start))

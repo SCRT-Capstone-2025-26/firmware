@@ -80,9 +80,11 @@ class DataManager:
 
     def _setup_canvas(self):
         count = len(self.types_to_plot) + 1
-        self.fig, axes_list = plt.subplots(count, 1, sharex=True, figsize=(9, 9))
+        self.fig, axes_list = plt.subplots(count // 2, 2, sharex=True, figsize=(9, 9))
         if count == 1:
             axes_list = [axes_list]
+        else:
+            axes_list = np.reshape(axes_list, count)
 
         for ax, typ in zip(axes_list, self.types_to_plot):
             self.axes[typ] = ax
