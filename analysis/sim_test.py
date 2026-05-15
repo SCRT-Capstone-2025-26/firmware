@@ -32,17 +32,19 @@ def get_sensor_data(sim, ground=False):
         "gyro": (0.0, 0.0, 0.0),
         "gyro_noise": (1.0, 1.0, 1.0),
         "baro": baro_data,
-        "baro_noise": (0.1, 0.0)
+        "baro_noise": (0.3, 0.0)
     }
 
 
 def run_test(dm):
-    rst = 10
-    ss = 0
+    rst = 0
+    ss = 5
 
     sim = Sim()
     # 261 low, 281 high
-    sim.set_state(state=(800, 281, 0), time=rst, max_step=0.1)
+    sim.set_state(time=rst, max_step=0.1)
+    # ~0.75 gets there
+    sim.factor = 0.78
 
     start = get_sensor_data(sim, True)
     dm.send(State(0, **start))
@@ -51,15 +53,13 @@ def run_test(dm):
 
     t = 0
     for _ in range(ss * 10):
-        dm.update()
+        dm.update(t * 1000, 0, 0)
 
         t += 0.1
         if t + st - time.time() > 0:
             time.sleep(t + st - time.time())
 
-    while time.time() - st < 20:
-        dm.update()
-
+    while time.time() - st < 30:
         servo = next((x for x in reversed(dm.get_current_data()) if isinstance(x[1], parse.Servo)), None)
         if servo is not None:
             sim.ext = servo[1].percent
@@ -70,6 +70,7 @@ def run_test(dm):
         t = ss + sim.curr_time - rst
 
         dm.send(State(int(t * 1000 * 1000), **get_sensor_data(sim)))
+        dm.update(t * 1000, sim.curr_state[0], sim.curr_state[1])
 
         if t + st - time.time() > 0:
             time.sleep(t + st - time.time())

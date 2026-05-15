@@ -91,24 +91,24 @@
 // Testing has shown they don't matter much
 // TODO: Determine values
 #define UNK_START_HEIGHT 1000.0f
-#define UNK_START_VEL    100.0f
+#define UNK_START_VEL    300.0f
 
 // The errors the rocket starts with if it is booted during flight and there is no flash history
 // TODO: Determine values
-#define UNK_START_H_ERROR 100.0f
-#define UNK_START_V_ERROR 100.0f
-#define UNK_START_VH_CORR 100.0f
+#define UNK_START_H_ERROR 10000.0f
+#define UNK_START_V_ERROR 10000.0f
+#define UNK_START_VH_CORR 10000.0f
 
 // This is the values that the rocket sets the estimated values to if it is booted during flight
 // TODO: Determine values
-#define BOOT_INC_HEIGHT 100.0f
-#define BOOT_INC_VEL    -10.0f
+#define BOOT_INC_HEIGHT 200.0f
+#define BOOT_INC_VEL    -30.0f
 
 // The errors the rocket starts with if it is booted during flight
 // TODO: Determine values
-#define BOOT_INC_H_ERROR 10.0f
-#define BOOT_INC_V_ERROR 10.0f
-#define BOOT_INC_VH_CORR 10.0f
+#define BOOT_INC_H_ERROR 100.0f
+#define BOOT_INC_V_ERROR 100.0f
+#define BOOT_INC_VH_CORR 100.0f
 
 // The upward acceleration below which beavs can extend
 // TODO: Determine value
@@ -134,7 +134,7 @@
 //  This formula assumes a sample every second the real formula does not
 // To prevent jittery servo
 // TODO: Determine
-#define SERVO_SMOOTH 0.5
+#define SERVO_SMOOTH 0.2
 // Get servo smooth into more favourable units
 // This should be compile time const
 #define SERVO_SMOOTH_LN_MS (std::log(SERVO_SMOOTH) * 0.001f)

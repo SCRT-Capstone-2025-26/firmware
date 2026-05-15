@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import time
 import glob
 import random
+import numpy as np
 
 import parse
 
@@ -78,7 +79,7 @@ class DataManager:
             pass
 
     def _setup_canvas(self):
-        count = len(self.types_to_plot)
+        count = len(self.types_to_plot) + 1
         self.fig, axes_list = plt.subplots(count, 1, sharex=True, figsize=(9, 9))
         if count == 1:
             axes_list = [axes_list]
@@ -95,15 +96,32 @@ class DataManager:
             ax.set_title(typ.__name__)
             ax.legend(loc="upper right", fontsize="x-large")
 
+        ax = axes_list[-1]
+        self.axes[None] = ax
+        self.lines[None] = []
+
+        (line,) = ax.plot([], [], label="Height")
+        self.lines[None].append(line)
+        (line,) = ax.plot([], [], label="Velocity")
+        self.lines[None].append(line)
+
+        ax.set_title("Other")
+        ax.legend(loc="upper right", fontsize="x-large")
+
         self.fig.show()
         plt.pause(0.1)
 
     # TODO: auto update
-    def update(self):
+    def update(self, t, h, v):
+        self.ts.append(t)
+        self.hs.append(h)
+        self.vs.append(v)
+
         if not self.data:
             self.fig.canvas.flush_events()
             return
 
+        mt = np.inf
         current_snapshot = self.data[:]
         for typ in self.types_to_plot:
             typ_items = [it for it in current_snapshot if isinstance(it[1], typ)]
@@ -111,6 +129,7 @@ class DataManager:
                 continue
 
             times, data_objects = zip(*typ_items)
+            mt = min(mt, *times)
 
             for i, line in enumerate(self.lines[typ]):
                 y_values = [obj[i] for obj in data_objects]
@@ -118,6 +137,11 @@ class DataManager:
 
             self.axes[typ].relim()
             self.axes[typ].autoscale_view()
+
+        self.lines[None][0].set_data([t + mt for t in self.ts], self.hs)
+        self.lines[None][1].set_data([t + mt for t in self.ts], self.vs)
+        self.axes[None].relim()
+        self.axes[None].autoscale_view()
 
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
@@ -134,6 +158,9 @@ class DataManager:
     def start(self, id):
         self.types_to_plot = [parse.Acc, parse.Servo, parse.FilterState]
         self.data = []
+        self.hs = []
+        self.vs = []
+        self.ts = []
         self.lines = {}
         self.axes = {}
         plt.ion()
