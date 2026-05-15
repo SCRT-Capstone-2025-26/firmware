@@ -3,6 +3,7 @@ import parse
 import scipy.optimize as opt
 import matplotlib.pyplot as plt
 import math
+import os
 
 # NOTE: steady_slices should not overlap
 
@@ -14,7 +15,8 @@ def calib_acc(g, accs, steady_slices):
     means = [parse.Acc(
         sum(acc.x for acc in accs) / len(accs),
         sum(acc.y for acc in accs) / len(accs),
-        sum(acc.z for acc in accs) / len(accs)
+        sum(acc.z for acc in accs) / len(accs),
+        accs[0].hg
     ) for accs in acc_slices]
 
     # Since the rest accelerometer reading is g + bias we have to seperate them
@@ -57,7 +59,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     with open(args.path, 'rb') as file:
-        items = parse.read_all(file)
+        items = []
+        for item in parse.read_iter(file, True):
+            if item is None:
+                break
+
+            items.append(item)
 
     accs = [acc for (_, acc) in items if isinstance(acc, parse.Acc)]
     gyros = [gyro for (_, gyro) in items if isinstance(gyro, parse.Gyro)]

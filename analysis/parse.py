@@ -25,7 +25,7 @@ item_types = {
 }
 
 # Can unpack_from be used?
-def read_item(file):
+def read_item(file, blocking=True):
     id = file.read(1)
     if id == b'':
         return None
@@ -58,7 +58,7 @@ def read_item(file):
     return timestamp, item_type(*args)
 
 
-def read_iter(file):
+def read_iter(file, ends=False):
     while True:
         item = read_item(file)
         # We keep skipping chars until we hit an item
@@ -66,6 +66,9 @@ def read_iter(file):
         #  readings, but it will settle to something valid
         #  eventually
         if item is None:
+            if ends:
+                break
+
             continue
 
         yield item
@@ -96,7 +99,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     with open(args.path, 'rb') as file:
-        items = list(read_iter(file))
+        items = []
+        for item in read_iter(file, True):
+            if item is None:
+                break
+
+            items.append(item)
 
     for typ in [Acc, Gyro, Baro, Servo, Current, FilterState, RotState]:
         typ_items = [(time, datum) for (time, datum) in items if isinstance(datum, typ)]

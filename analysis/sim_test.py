@@ -47,7 +47,7 @@ def run_test(dm):
     # 261 low, 281 high
     sim.set_state(state=(0, 0, np.deg2rad(4)), time=rst, max_step=0.1)
     # ~0.75 gets there
-    sim.factor = 0.81
+    sim.factor = 1
 
     start = get_sensor_data(sim, True)
     dm.send(State(0, **start))
