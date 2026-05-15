@@ -43,7 +43,7 @@
 // The amount of acc from normal gravity required to consider
 //  it a launch
 #define LAUNCH_ACC       30.0f
-#define LAUNCH_ACC_BOOT   2.0f
+#define LAUNCH_ACC_BOOT   3.0f
 // A big history can easily take up a lot of the kinda limited ram
 // The seconds of imu data to have in a rolling buffer so that after
 //  launch is detected the first few moments of launch
@@ -64,7 +64,7 @@
 //  after about 0.46s)
 #define LAUNCH_SAMPLE_DECAY    (1.5f / ACC_RATE)
 #define LAUNCH_SAMPLE_REQ      0.6f
-#define LAUNCH_SAMPLE_REQ_BOOT 0.3f
+#define LAUNCH_SAMPLE_REQ_BOOT 0.5f
 // We need to determine the rotation before launch from
 //  some accelerometer data so we put that in the circular buffer as well
 #define ROT_HIST_SAMPLES  ((uint32_t)(0.5f * ACC_RATE))
@@ -129,6 +129,16 @@
 // 0 percent is 0mm
 #define SERVO_MM_TO_PERCENT (1.0f / 25.0f)
 
+// The exponential decay for the servo during flight
+//  p = (SERVO_SMOOTH * p) + ((1 - SERVO_SMOOTH) * new_p)
+//  This formula assumes a sample every second the real formula does not
+// To prevent jittery servo
+// TODO: Determine
+#define SERVO_SMOOTH 0.5
+// Get servo smooth into more favourable units
+// This should be compile time const
+#define SERVO_SMOOTH_LN_MS (std::log(SERVO_SMOOTH) * 0.001f)
+
 // NOTE: Changing this affects the following line and load_flash() in state.cpp
 const Eigen::Vector3f LOCAL_UP(0.0f, 0.0f, 1.0f);
 // This is based on LOCAL_UP (this init should be changed to be dependent on LOCAL_UP)
@@ -142,6 +152,9 @@ struct FlightState {
   // This shuts off the BEAVS extension if it is to high to be safe
   // NOTE: Safety critical
   float forward_acc = BEAVS_EXT_ACC;
+
+  float flight_servo_percent = 0.5f;
+  Millis flight_servo_last_ms = 0;
 
   // 0 is height in world frame, 1 is velocity in rocket frame
   Eigen::Vector2f state;

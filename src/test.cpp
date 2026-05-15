@@ -183,9 +183,12 @@ void init_debug() {
 
 void read_debug() {
   int desc = Serial.peek();
+
+  StateCommand state_command;
+  DoneCommand done_command;
+  String message;
   switch (desc) {
     case 'S':
-      StateCommand state_command;
       // The serial buffer is expanded in TEST mode so state_command can fit
       if (Serial.available() < sizeof(state_command) + 1) {
         break;
@@ -200,7 +203,6 @@ void read_debug() {
 
       break;
     case 'D':
-      DoneCommand done_command;
       if (Serial.available() < sizeof(done_command) + 1) {
         break;
       }
@@ -215,6 +217,17 @@ void read_debug() {
     case 'P':
       Serial.read();
       send_ack();
+
+      break;
+    case 'R':
+      watchdog_reboot(0, 0, 0);
+
+      break;
+    case 'M':
+      Serial.read();
+      message = Serial.readStringUntil('\0');
+      log_message("Recieved message: " + message);
+
       break;
     case -1:
       break;

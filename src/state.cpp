@@ -49,7 +49,7 @@ void FlightState::push_acc(Eigen::Vector3f acc, bool is_high_g) {
   // Forward acc determines if beavs can extend
   forward_acc = acc.dot(LOCAL_UP);
   // TODO: Determine
-  float noise = 20.0f;
+  float noise = 20.0f / ACC_RATE;
 
   // Since this is called regularly with a frequency of ACC_RATE we update the
   //  state and use acc as a control input
@@ -124,12 +124,31 @@ FlashState FlightState::get_flash() {
 // 0 percent servo is flush with the hull
 // TODO: Fix the angle being hardcoded, due to bugs
 float FlightState::get_servo() {
+  // We clamp the servo because the lookup table internpolates huge values
+  //  especially at the end this stosp the filter from being overpowered
+  float servo_percent = index_table(state(0), 1.0, state(1)) * SERVO_MM_TO_PERCENT;
+  servo_percent = max(min(servo_percent, 1.0f), 0.0f);
+
+  // This interpolates between the two servo values based on the time
+  //  elapsed it is has a pretty heavy duty math, but we can afford it
+  Millis time = millis_in_mode();
+  Millis dt = time - flight_servo_last_ms;
+
+  if (flight_servo_last_ms == 0) {
+    // If this is the first sample we can just set it
+    flight_servo_percent = servo_percent;
+  } else {
+    float interp = std::exp(SERVO_SMOOTH_LN_MS * dt);
+    flight_servo_percent = (flight_servo_percent * interp) + (servo_percent * (1.0f - interp));
+  }
+  flight_servo_last_ms = time;
+
   // We can't extend beavs while until we are not accelerating aka the raw (gravity included) accelerometer reading is small
   if (forward_acc >= BEAVS_EXT_ACC) {
     return 0.0f;
   }
 
-  return index_table(state(0), 1.0, state(1)) * SERVO_MM_TO_PERCENT;
+  return flight_servo_percent;
 }
 
 bool FlightState::done() {
@@ -165,11 +184,12 @@ void RestState::push_acc(Eigen::Vector3f acc, bool high_g) {
   launchiness *= (1.0f - LAUNCH_SAMPLE_DECAY);
   launchiness_boot *= (1.0f - LAUNCH_SAMPLE_DECAY);
 
-  if (std::abs(acc.norm() - GRAVITY_ACC) >= LAUNCH_ACC) {
+  float diff = std::abs(acc.norm() - GRAVITY_ACC);
+  if (diff >= LAUNCH_ACC) {
     launchiness += LAUNCH_SAMPLE_DECAY;
   }
 
-  if (std::abs(acc.norm() - GRAVITY_ACC) >= LAUNCH_ACC_BOOT) {
+  if (diff >= LAUNCH_ACC_BOOT) {
     launchiness_boot += LAUNCH_SAMPLE_DECAY;
   }
 }
@@ -239,7 +259,7 @@ bool RestState::try_init_flying(FlightState &state) {
 // This runs in UNKOWN mode and if a flight is detected it means we have just booted
 bool RestState::try_init_flying_boot(FlightState &state) {
   // If it is not launch time we just return early
-  if (launchiness <= LAUNCH_SAMPLE_REQ_BOOT) {
+  if (launchiness_boot <= LAUNCH_SAMPLE_REQ_BOOT) {
     return false;
   }
 

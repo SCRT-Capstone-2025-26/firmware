@@ -150,9 +150,6 @@ void setup() {
     delay(100);
   }
 
-  String test_id = Serial.readStringUntil('\0');
-  log_message("Loaded Test ID: " + test_id);
-
   // If the init fails then we can continue since it may just cause
   //  the test to have a bit of undefined readings
   init_debug();
@@ -175,8 +172,8 @@ void setup() {
     // TODO: This should be fixed at least for release mode
     for (int i = 0; i < INT_MAX; i++) {
 #ifdef TEST
-      String log_path = "Logs/log_test_" + test_id + "_" + String(i) + ".txt";
-      String data_path = "Data/data_test_" + test_id + "_" + String(i) + ".bin";
+      String log_path = "Logs/log_test_" + String(i) + ".txt";
+      String data_path = "Data/data_test_" + String(i) + ".bin";
 #else
       String log_path = "Logs/log_" + String(i) + ".txt";
       String data_path = "Data/data_" + String(i) + ".bin";
@@ -261,9 +258,11 @@ void handle_data(DataEvent data) {
     data_file.write(&data.value, size);
   }
 
+#ifdef TEST
   Serial.write(id);
   Serial.write((char *)&data.timestamp, sizeof(data.timestamp));
   Serial.write((char *)&data.value, size);
+#endif
 }
 
 // Just empties the log queue
