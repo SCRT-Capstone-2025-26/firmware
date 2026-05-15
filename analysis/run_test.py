@@ -8,7 +8,6 @@ import test_comm
 
 if __name__ == '__main__':
     parser = ap.ArgumentParser()
-    parser.add_argument("port")
     parser.add_argument("test")
     args = parser.parse_args()
 
@@ -24,9 +23,8 @@ if __name__ == '__main__':
 
     # TODO: A with statement should be used
     # TODO: Fix noise
-    dm = test_comm.DataManager(args.port)
-    dm.start()
-    dm.ser.write(b"Test 1\0")
+    dm = test_comm.DataManager()
+    dm.start("Test 1")
 
     test_run.run_test(dm)
 

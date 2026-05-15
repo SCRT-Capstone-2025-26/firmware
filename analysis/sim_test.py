@@ -38,7 +38,8 @@ def get_sensor_data(sim, ground=False):
 
 def run_test(dm):
     sim = Sim()
-    sim.set_state(max_step=0.1)
+    # 261 low, 281 high
+    sim.set_state(state=(800, 281, 0), time=10, max_step=0.1)
 
     start = get_sensor_data(sim, True)
     dm.send(State(0, **start))
