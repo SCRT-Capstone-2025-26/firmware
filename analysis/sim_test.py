@@ -25,7 +25,10 @@ def get_sensor_data(sim, ground=False):
     acc_data = (0.0, current_accel * math.sin(theta), current_accel * math.cos(theta))
     hg_acc_data = acc_data
 
-    dzenith = sim.dangle(sim.curr_time, sim.curr_state)
+    if not ground:
+        dzenith = 0.3 # sim.dangle(sim.curr_time, sim.curr_state)
+    else:
+        dzenith = 0,
 
     return {
         "acc": acc_data,
