@@ -34,10 +34,10 @@
 
 #define CURRENT_1_ID           0x40
 #define CURRENT_2_ID           0x41
-#define CURRENT_3_ID           0x42
-#define CURRENT_4_ID           0x43
-#define CURRENT_5_ID           0x44
-#define CURRENT_6_ID           0x45
+#define CURRENT_3_ID           0x43
+#define CURRENT_4_ID           0x44
+#define CURRENT_5_ID           0x45
+#define CURRENT_6_ID           0x47
 
 #endif
 
