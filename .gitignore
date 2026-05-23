@@ -1,8 +1,4 @@
 .pio/
 
-<<<<<<< HEAD
-=======
-src/test_data.h
->>>>>>> main
 src/table_data.h
 
