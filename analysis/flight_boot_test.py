@@ -1,14 +1,5 @@
 from log_check import LogExpectation, LogChecker
-
-max_steps = 1
-micros_per_step = 3 * 1000 * 1000
-
-acc_data = [(0.0, 0.0, 0.0)]
-hg_acc_data = [(0.0, 0.0, 0.0)]
-
-gyro_data = [(0.0, 0.0, 0.0)]
-
-baro_data = [(0.0, 0.0)]
+from run_test import Done, State
 
 checker = LogChecker()
 
@@ -48,4 +39,19 @@ for previous, next in zip(core_1[:-1], core_1[1:]):
 # Data and logs are already parsed
 def check_sample(log, data):
     return checker.check(log)
+
+
+def run_test(dm):
+    acc_data = (0.0, 0.0, 0.0)
+    hg_acc_data = (0.0, 0.0, 0.0)
+
+    gyro_data = (0.0, 0.0, 0.0)
+
+    baro_data = (0.0, 0.0)
+
+    # Since the code does linear interpolation this will make it always have the given state
+    dm.send(State(0, acc_data, hg_acc_data, gyro_data, baro_data))
+    dm.send(State(1, acc_data, hg_acc_data, gyro_data, baro_data))
+
+    dm.send(Done(3))
 

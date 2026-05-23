@@ -196,6 +196,29 @@ bool try_power_servo() {
   return true;
 }
 
+// This is called when the board confirms that it has booted an is on the ground waiting to launch
+// It could take some time to run (because it waits for the log core), but it shouldn't because the
+//  log core should boot fast
+void ground_boot() {
+  log_message("Waiting on log core");
+  // Wait for the other core to finish booting
+  // This returns when the other core has booted with whether it has created log files
+  bool sd_failure = wait_log_boot();
+  // If there is an SD failure mark that (it is not critical though).
+  // Since the function returned the other core has booted and we can continue
+  log_message("Log core booted");
+  if (!sd_failure) { log_message("SD inited"); }
+  leds[LED_SD] = sd_failure ? LED_NEGATIVE : LED_POSITIVE;
+  led_show();
+
+  log_message("Clearing flash");
+  // We mess with the watchdog here since this could take a long time and we are on the ground and safe
+  watchdog_enable(WATCHDOG_MS_CLEAR_FLASH, 1);
+  // If flash isn't working we don't care
+  if (!clear_flash_buf()) { note_error("Flash clear Failed", DO_NOTHING_ERR); }
+  watchdog_enable(WATCHDOG_MS, 1);
+}
+
 // NOTE: Init values are temporary and will be determined by data later
 void setup1() {
 #ifdef DEBUG
@@ -260,15 +283,6 @@ void setup1() {
 #ifdef TEST
   #warning Board is in TEST mode
   log_message("Board is in TEST mode");
-
-  // We only want to run tests if the board has been rebooted to stop running
-  //  test immediatly when the board is plugged in to reflash
-  if (!reboot) {
-    // It seems like the LEDs need a bit of time to boot up
-    sleep(1);
-    led_show();
-    while (true) { sleep(1000); }
-  }
 #endif
 
   // Initialize the LED the rp2040 has two SPIs and we init the first one to be able to communicate to the sensors
@@ -343,7 +357,6 @@ void setup1() {
   Wire.setClock(100000);
   Wire.begin();
 
-
   bool current_sens_failed = false;
   if (current_sensor.begin() != INA_SUCCESS) {
     log_message("Current sensor init failed");
@@ -351,6 +364,10 @@ void setup1() {
   }
 
   leds[LED_CURRENT] = current_sens_failed ? LED_NEGATIVE : LED_POSITIVE;
+
+#ifdef TEST
+  ground_boot();
+#endif
 
   if (baro_init && imu_init && !current_sens_failed) {
     // The board is now ready
@@ -368,29 +385,6 @@ void setup1() {
   }
 
   // The 1 means it plays nice with the debugger
-  watchdog_enable(WATCHDOG_MS, 1);
-}
-
-// This is called when the board confirms that it has booted an is on the ground waiting to launch
-// It could take some time to run (because it waits for the log core), but it shouldn't because the
-//  log core should boot fast
-void ground_boot() {
-  log_message("Waiting on log core");
-  // Wait for the other core to finish booting
-  // This returns when the other core has booted with whether it has created log files
-  bool sd_failure = wait_log_boot();
-  // If there is an SD failure mark that (it is not critical though).
-  // Since the function returned the other core has booted and we can continue
-  log_message("Log core booted");
-  if (!sd_failure) { log_message("SD inited"); }
-  leds[LED_SD] = sd_failure ? LED_NEGATIVE : LED_POSITIVE;
-  led_show();
-
-  log_message("Clearing flash");
-  // We mess with the watchdog here since this could take a long time and we are on the ground and safe
-  watchdog_enable(WATCHDOG_MS_CLEAR_FLASH, 1);
-  // If flash isn't working we don't care
-  if (!clear_flash_buf()) { note_error("Flash clear Failed", DO_NOTHING_ERR); }
   watchdog_enable(WATCHDOG_MS, 1);
 }
 
@@ -414,7 +408,9 @@ void update_mode() {
         }
       } else if (millis_in_mode() >= UNKNOWN_WAIT) {
         push_mode(UNARMED);
+#ifndef TEST
         ground_boot();
+#endif
       }
 
       break;
@@ -925,6 +921,12 @@ void flash_save() {
 //  ready (this would mess with the flash write rate if not done well). The
 //  loop may be fast enough it doesn't matter
 void loop1() {
+#ifdef TEST
+  if (get_reboot()) {
+    watchdog_reboot(0, 0, 0);
+  }
+#endif
+
   // If we have reached critical failure then we return early
   if (board_mode == FAILURE) {
     do_failure();
@@ -963,11 +965,5 @@ void loop1() {
   }
 
   watchdog_update();
-
-#ifdef TEST
-  if (get_reboot()) {
-    watchdog_reboot(0, 0, 0);
-  }
-#endif
 }
 

@@ -116,6 +116,32 @@ bool is_after(Micros a, Micros b) {
   return high_bit == 1;
 }
 
+// It is quite possible this is slower than just normal iteration
+// However, it won't matter (and it will be faster on the height table)
+// The array must be of size greater than two and monotonic
+// Which is checked by the build script
+// This will always return values in bounds
+size_t bin_search(const float arr[], float target, size_t size) {
+  size_t low = 0;
+  size_t high = size - 1;
+
+  // Binary search for the bounds around the current target
+  while (low + 1 != high) {
+    size_t index = (low + high) / 2;
+
+    if (target < arr[index]) {
+      high = index;
+    } else {
+      low = index;
+    }
+  }
+
+  // Return the value below target with low + 1 being above
+  // The below and above may not be true if the value is outside
+  //  the range of the array
+  return low;
+}
+
 // Creates a line from the x0, x1, y0, y1 and then finds the y for the given x on that line
 // x0 should not be equal to x1
 float linear_interp(float x, float x0, float x1, float y0, float y1) {

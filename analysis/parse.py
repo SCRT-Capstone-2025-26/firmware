@@ -30,6 +30,25 @@ def read_item(file):
     if id == b'':
         return None
 
+    # An ack
+    if id == b'K':
+        return (None, file.read(2) == b'67')
+
+    # A string
+    if id == b'L':
+        s = b''
+        while True:
+            c = file.read(1)
+            if c == b'\0':
+                break
+
+            s += c
+
+        return (None, s)
+
+    if not id in item_types:
+        return None
+
     packing, item_type = item_types[id]
     packing = '<L' + packing
 
@@ -39,16 +58,17 @@ def read_item(file):
     return timestamp, item_type(*args)
 
 
-def read_all(file):
-    items = []
+def read_iter(file):
     while True:
         item = read_item(file)
+        # We keep skipping chars until we hit an item
+        #  this means that the first few items may be bad
+        #  readings, but it will settle to something valid
+        #  eventually
         if item is None:
-            break
+            continue
 
-        items.append(item)
-
-    return items
+        yield item
 
 
 def read_log(line):
@@ -76,7 +96,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     with open(args.path, 'rb') as file:
-        items = read_all(file)
+        items = list(read_iter(file))
 
     for typ in [Acc, Gyro, Baro, Servo, Current, FilterState, RotState]:
         typ_items = [(time, datum) for (time, datum) in items if isinstance(datum, typ)]

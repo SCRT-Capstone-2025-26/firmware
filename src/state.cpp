@@ -133,10 +133,10 @@ float FlightState::get_servo() {
 }
 
 bool FlightState::done() {
-  // I believe IREC requires no flight controls at 30 degrees
+  // I believe IREC requires no flight controls at 20 degrees
   // Hopefully cos gets optimized
   // NOTE: This maybe shouldn't just be an immediate shutoff (although if we calculate 30 deg may be cooked anyway)
-  if (cos_zenith < std::cos(30.0f * DEG_TO_RAD)) {
+  if (cos_zenith <= std::cos(20.0f * DEG_TO_RAD)) {
     return true;
   }
 
