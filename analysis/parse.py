@@ -25,7 +25,7 @@ item_types = {
 }
 
 # Can unpack_from be used?
-def read_item(file, blocking=True):
+def read_item(file):
     id = file.read(1)
     if id == b'':
         return None
@@ -118,4 +118,3 @@ if __name__ == '__main__':
         plt.legend()
         plt.xlabel('ms')
         plt.show()
-
