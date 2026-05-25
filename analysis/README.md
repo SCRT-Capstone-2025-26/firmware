@@ -3,7 +3,7 @@
 * **`parse.py`**: General script to handle the data files from a flight. If run with a filepath `python3 parse.py path/to/file.bin` it will plot the binary logs.
 
 ### Testing
-* **`run_test.py`**: This can be used in conjuction with a test build from the main firmware to run a test over usb. It is currently not finished and requires inspection an modification of test the code (found in `sim_test.py`) to use. To currently run it is `python3 run_test.py sim_test.py /path/to/ACMboard` 
+* **`run_test.py`**: This can be used in conjunction with a test build from the main firmware to run a test over usb. It is currently not finished and requires inspection and modification of the code (found in `sim_test.py`) to use. To currently run it is `python3 run_test.py sim_test.py /path/to/ACMboard` 
 * **`sim_test.py`**: Contains the code that interfaces between the board and the SCRT python simulation. It can be modified to change the exact simulation that will be run.
   
 ### Miscellaneous
