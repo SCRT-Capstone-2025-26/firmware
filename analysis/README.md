@@ -1,4 +1,4 @@
-# Project Overview
+# Overview
 
 This repository contains tools, scripts, and simulations for calibrating, testing, and analyzing data from an embedded system, likely related to a flight controller or similar sensor-based project.
 
