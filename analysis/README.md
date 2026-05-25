@@ -1,9 +1,3 @@
-# Overview
-
-This repository contains tools, scripts, and simulations for calibrating, testing, and analyzing data from an embedded system, likely related to a flight controller or similar sensor-based project.
-
-## File Descriptions
-
 ### Calibration & Analysis
 * **`calib.py`**: See **`CALIBRATION.md`**
 * **`parse.py`**: General script to handle the data files from a flight. If run with a filepath `python3 parse.py path/to/file.bin` it will plot the binary logs.
