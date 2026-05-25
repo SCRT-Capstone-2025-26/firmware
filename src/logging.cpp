@@ -2,16 +2,33 @@
 #include <SdFat.h>
 #include <pico/platform.h>
 #include <variant>
-#include <tuple>
-// TODO: Possibly add radio
 
 #include "logging.h"
 #include "eventqueue.h"
 #include "pins.h"
 #include "util.h"
 
+// How many ms between a log of the given type at most
+//  to prevent the buffer being flooded
+#define ACC_RATE_LIM  50
+#define GYRO_RATE_LIM 50
+#define BARO_RATE_LIM 50
+#define SERV_RATE_LIM 50
+#define CURR_RATE_LIM 50
+#define FILT_RATE_LIM 50
+#define ROT_RATE_LIM  50
+
+// The size of the event buffer
+#define EVENT_BUF_LIMIT 255
+// The amount of the event buffer filled where log messages stop being added
+//  this prevents log spam from stopping data being written in theory
+#define LOG_BUF_LIMIT   (EVENT_BUF_LIMIT / 2)
+
+// This is to feed the Arduino stuff I believe
+//  that runs outside of the loop. I don't think this is needed
+#define EVENT_TIMEOUT 5
+
 // This file handles the code that runs on the other core and handles the logging for Beavs
-// TODO: Look into real string generation instead of just adding strings together
 
 // See https://stackoverflow.com/questions/64017982/c-equivalent-of-rust-enums
 // This allows rust like enums with the c++ variant
@@ -27,12 +44,19 @@ auto match(Val &&val, Ts... ts) {
 
 std::atomic_bool log_booted(false);
 std::atomic<bool> sd_failure;
+std::atomic<bool> flash_ready(false);
+
+Millis last_acc  = 0;
+Millis last_gyro = 0;
+Millis last_baro = 0;
+Millis last_serv = 0;
+Millis last_curr = 0;
+Millis last_filt = 0;
+Millis last_rot = 0;
 
 SdFs sd;
 FsFile log_file;
 FsFile data_file;
-// Calib is a binary file there is a reader script in analysis
-FsFile calib_file;
 
 // This is a class to put logs in the queue from the main core
 struct LogEvent {
@@ -41,26 +65,52 @@ struct LogEvent {
   Message value;
 };
 
+struct DataEvent {
+  Millis timestamp;
+  Data value;
+};
+
 // This is thread safe to store the events put in the queue
 // Should be big enough for boot events to build up before being cleared
-EventQueue<std::variant<LogEvent, CalibData>, 64> events;
+EventQueue<std::variant<LogEvent, DataEvent>, EVENT_BUF_LIMIT> events;
 // Is set to time if there is a log and events is full
 // If there are two fails only one is guarranteed to work
-std::atomic_bool event_write_fail;
+std::atomic_bool log_write_fail = false;
+std::atomic_bool data_write_fail = false;
 
 // This can be called from either core and is the main logging functionality
 void log_message(Message &&content) {
-  if (!events.putQ(LogEvent{millis(), get_core_num(), content})) {
+  // We add a custom log limit to prevent the log events from flooding and blocking data events
+  //  since if there are a large number of logs they are probably repeatitive and not interesting
+  if (!events.putQ(LogEvent{millis(), get_core_num(), content}, LOG_BUF_LIMIT)) {
     // If we fail to write then we mark that
-    event_write_fail = true;
+    log_write_fail = true;
   }
 }
 
 // This should be call by the main core
-void write_calib(CalibData &&data) {
-  if (!events.putQ(data)) {
+void write_data(Data &&data) {
+  const auto [last_write, lim] = match(data,
+    [](Acc _) { return std::make_tuple(&last_acc, ACC_RATE_LIM); },
+    [](Gyro _) { return std::make_tuple(&last_gyro, GYRO_RATE_LIM); },
+    [](Baro _) { return std::make_tuple(&last_baro, BARO_RATE_LIM); },
+    [](Servo _) { return std::make_tuple(&last_serv, SERV_RATE_LIM); },
+    [](Current _) { return std::make_tuple(&last_curr, CURR_RATE_LIM); },
+    [](FilterState _) { return std::make_tuple(&last_filt, FILT_RATE_LIM); },
+    [](RotState _) { return std::make_tuple(&last_rot, ROT_RATE_LIM); }
+  );
+
+  // We check this is not being rate limited before writing to the queue
+  Millis curr = millis();
+  if (*last_write + lim <= curr) {
+    *last_write = curr;
+  } else {
+    return;
+  }
+
+  if (!events.putQ(DataEvent{curr, data})) {
     // If we fail to write then we mark that
-    event_write_fail = true;
+    data_write_fail = true;
   }
 }
 
@@ -73,11 +123,18 @@ bool wait_log_boot() {
   return sd_failure;
 }
 
-void setup1() {
+void setup() {
 #ifdef DEBUG
   // Allow some time for the serial to connect
   sleep(DEBUG_BOOT_DELAY);
 #endif
+
+  // This is here since the other core writes to flash
+  // See the documentation on flash writing
+  // This uses the overrided flash safety handler from flash.h and flash.cpp
+  flash_safe_execute_core_init();
+  // This prevents super edge case race conditions where this core is not running and flash is written
+  flash_ready = true;
 
   // Init the serial
   Serial.begin(115200);
@@ -87,33 +144,30 @@ void setup1() {
   //  until the files are created and written to
   bool file_inited = false;
   // Check if we can access the sd
-  // TODO: There is probably some errors that are not being checked (like the returns from mkdir)
   if (sd.begin(SdioConfig(SD_CLOCK, SD_CMD, SD_DATA_0))) {
     log_message("SD inited");
 
     // Create the log folders if they don't already exist
     sd.mkdir("Logs");
     sd.mkdir("Data");
-#ifdef CALIBRATION
-    sd.mkdir("Calib");
-#endif
 
     // Try to create the log files we just search for the first two files with an available name
     //  by incrementing the number in the name
+    // NOTE: This loop actually takes some time so the SD card should be cleared before flight
+    // TODO: This should be fixed at least for release mode
     for (int i = 0; i < INT_MAX; i++) {
+#ifdef TEST
+      String log_path = "Logs/log_test_" TEST_ID "_" + String(i) + ".txt";
+      String data_path = "Data/data_test_" TEST_ID "_" + String(i) + ".bin";
+#else
       String log_path = "Logs/log_" + String(i) + ".txt";
-      String data_path = "Data/data_" + String(i) + ".csv";
+      String data_path = "Data/data_" + String(i) + ".bin";
+#endif
+
       // Check that both are available continue the loop if not
       if (sd.exists(log_path) || sd.exists(data_path)) {
         continue;
       }
-
-#ifdef CALIBRATION
-      String calib_path = "Calib/calib_" + String(i) + ".bin";
-      if (sd.exists(calib_path)) {
-        continue;
-      }
-#endif
 
       log_message("File number " + String(i) + " found");
 
@@ -121,13 +175,11 @@ void setup1() {
       log_file = sd.open(log_path, (oflag_t)(O_CREAT | O_WRITE | O_APPEND));
       data_file = sd.open(data_path, (oflag_t)(O_CREAT | O_WRITE | O_APPEND));
 
-      // Init the csv header
-      data_file.println("time,acc x,acc y, acc z,gyro x, gyro y,gyro z");
-      data_file.flush();
-
-#ifdef CALIBRATION
-      calib_file = sd.open(calib_path, (oflag_t)(O_CREAT | O_WRITE | O_APPEND));
-#endif
+      // This means one of the files failed to be opened
+      // We can just keep trying to open different files
+      if (!log_file || !data_path) {
+        continue;
+      }
 
       // We have created log files
       file_inited = true;
@@ -147,7 +199,6 @@ void setup1() {
 void write_log(String content) {
   if (!sd_failure) {
     log_file.println(content);
-    log_file.flush();
   }
 
   Serial.println(content);
@@ -159,7 +210,9 @@ void handle_log_event(LogEvent event) {
   // Convert the log data into a human readable string
   String content = match(event.value,
     [](String str) { return String(str); },
-    [](ModeChange change) { return String(MODE_TO_NAME[change.old] + " -> " + MODE_TO_NAME[change.next]); }
+    [](Error err) { return String("ERROR: " + err.content); },
+    [](ModeChange change) { return String(MODE_TO_NAME[change.old] + " -> " + MODE_TO_NAME[change.next]); },
+    [](BoardID boardID) { return String("Board ID: 0x" + String((uint32_t)(boardID.id >> 32), 16) + String((uint32_t)(boardID.id), 16)); }
   );
 
   // For some reason the Arduino examples use this string adding
@@ -167,36 +220,57 @@ void handle_log_event(LogEvent event) {
   write_log("[time: " + String(event.timestamp) + "ms, core: " + String(event.core) + "] " + content);
 }
 
-void handle_calib(CalibData data) {
+void handle_calib(DataEvent data) {
   if (!sd_failure) {
-    std::tuple<char, size_t> content = match(data,
-      [](AccCalib data) { return std::make_tuple('A', sizeof(data)); },
-      [](GyroCalib data) { return std::make_tuple('G', sizeof(data)); }
+    const auto [id, size] = match(data.value,
+      [](Acc data) { return std::make_tuple('A', sizeof(data)); },
+      [](Gyro data) { return std::make_tuple('G', sizeof(data)); },
+      [](Baro data) { return std::make_tuple('B', sizeof(data)); },
+      [](Servo data) { return std::make_tuple('S', sizeof(data)); },
+      [](Current data) { return std::make_tuple('C', sizeof(data)); },
+      [](FilterState data) { return std::make_tuple('F', sizeof(data)); },
+      [](RotState data) { return std::make_tuple('R', sizeof(data)); }
     );
 
-    calib_file.write(std::get<0>(content));
-    calib_file.write(&data, std::get<1>(content));
-    calib_file.flush();
+    data_file.write(id);
+    data_file.write(&data.timestamp, sizeof(data.timestamp));
+    data_file.write(&data.value, size);
   }
 }
 
 // Just empties the log queue
-void loop1() {
-  std::variant<LogEvent, CalibData> event;
+void loop() {
+  std::variant<LogEvent, DataEvent> event;
 
-  while (true) {
-    events.getQ(event, true);
+  // We try a non-blocking read first to see if the queue is empty
+  if (!events.getQ(event, 0)) {
+    // We now have time to flush the buffers
+    data_file.flush();
+    log_file.flush();
 
-    // Check if there was an overflow in the event queue
-    if (event_write_fail) {
-      // Set this false first to catch more overflows
-      event_write_fail = false;
-
-      write_log("Log buffer full.");
+    // If we still don't get anything then we return to let the Arduino
+    //  stuff run a bit. I don't think this is needed
+    if (!events.getQ(event, EVENT_TIMEOUT)) {
+      return;
     }
-
-    // I don't know why the lambdas are needed
-    match(event, [](LogEvent event) { handle_log_event(event); }, [](CalibData event) { handle_calib(event); });
   }
+
+  // Check if there was an overflow in the event queue
+  if (log_write_fail) {
+    // Set this false first to catch more overflows
+    log_write_fail = false;
+
+    write_log("Log buffer full.");
+  }
+
+  if (data_write_fail) {
+    // Set this false first to catch more overflows
+    data_write_fail = false;
+
+    write_log("Data buffer full.");
+  }
+
+  // I don't know why the lambdas are needed
+  match(event, [](LogEvent event) { handle_log_event(event); }, [](DataEvent event) { handle_calib(event); });
 }
 

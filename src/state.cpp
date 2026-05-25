@@ -1,9 +1,9 @@
 #include "state.h"
 
-#include "util.h"
-
-#include "logging.h"
 #include <cmath>
+
+#include "flash.h"
+#include "table.h"
 
 // NOTE: There is no FPU on the RP2040 so this code could be more of a performance bottleneck that it appears
 // NOTE: These operations use the eigen math library and could be manually optimized in some cases,
@@ -14,18 +14,21 @@
 //  version has been implmented yet)
 // NOTE: It is worth considering what parts of this could be fixed point
 
-// TODO: Test performance
-// TODO: It would make more sense to store the baro input and then wait until
-//  the imu reads data at a time past the baro read time and then apply the baro data
-//  that way it is always correclty applied at the right time
-
+// NOTE: Pressure is in milibars we plan on converting it
 void FlightState::push_baro(float pressure, float temperature) {
+  // We ignore the barometer at speeds where the pressure is know to be unreliable
+  //  due to areodynamic stuff around 1 mach
+  if (MIN_BARO_CUTOFF <= state(1) && MAX_BARO_CUTOFF >= state(1)) {
+    return;
+  }
+
   // Estimate from pressure and temperature
   // This is the formula used by https://github.com/RobTillaart/MS5611
   // TODO: Update this math
-  float height = 44307.694 * (1 - pow(pressure / SEA_LEVEL_PRESURE, 0.190284));
+  float height = 44307.694 * (1 - pow(pressure / 1013.25, 0.190284));
+  height -= HEIGHT_ABOVE_SEA_LEVEL;
   // Using the state like this is kinda not allowed in a true Kalman filter
-  float noise = 1.0f;
+  float noise = 50.0f;
 
   // Standard Kalman update
 
@@ -39,16 +42,14 @@ void FlightState::push_baro(float pressure, float temperature) {
   cov = (Eigen::Matrix2f::Identity() - (gain * obser)) * cov;
 }
 
-void FlightState::push_acc(Eigen::Vector3f &&acc, bool is_high_g) {
-  // We need the un gravity compenstated magnitude for detecting if beavs can be used
-  raw_acc_mag_sq = acc.dot(acc);
-
+void FlightState::push_acc(Eigen::Vector3f acc, bool is_high_g) {
   // Remove the fictitious gravity force
   acc -= rot.inverse() * Eigen::Vector3f(0.0f, GRAVITY_ACC, 0.0f);
 
-  float forward_acc = acc.dot(LOCAL_UP);
+  // Forward acc determines if beavs can extend
+  forward_acc = acc.dot(LOCAL_UP);
   // TODO: Determine
-  float noise = 1.0f;
+  float noise = 20.0f;
 
   // Since this is called regularly with a frequency of ACC_RATE we update the
   //  state and use acc as a control input
@@ -56,52 +57,86 @@ void FlightState::push_acc(Eigen::Vector3f &&acc, bool is_high_g) {
   // Standard Kalman predict
   // See https://stats.stackexchange.com/questions/134920/kalman-filter-with-input-control-noise for the control noise
 
-  // See the done code for explaination of cosZenith
-  // We could optimize by storing this value and then using it in done
-  Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
-  Eigen::Vector3f rocket_up = rot * LOCAL_UP;
-  float cosZenith = up.dot(rocket_up);
   // cos(zenith) * dt
-  trans(0, 1) = cosZenith * (1.0f / ACC_RATE);
+  trans(0, 1) = cos_zenith * (1.0f / ACC_RATE);
   // 1/2 * cos(zenith) * dt^2
-  control(0) = 0.5f * cosZenith * (1.0f / ACC_RATE) * (1.0f / ACC_RATE);
+  control(0) = 0.5f * cos_zenith * (1.0f / ACC_RATE) * (1.0f / ACC_RATE);
 
   state = (trans * state) + (control * forward_acc);
   // See https://stats.stackexchange.com/questions/134920/kalman-filter-with-input-control-noise for the control noise
   cov = (trans * cov * trans.transpose()) + (control * noise * control.transpose()) + trans_noise;
 }
 
-void FlightState::push_gyro(Eigen::Vector3f &&gyro) {
+void FlightState::push_gyro(Eigen::Vector3f gyro) {
   // See https://stackoverflow.com/questions/23503151/how-to-update-quaternion-based-on-3d-gyro-data
   // I think this is based on the approximation sin(x) == x
   Eigen::Quaternionf w(0, gyro.x(), gyro.y(), gyro.z());
   // Written like (1.0f / x) to ensure gcc optmizes to a multiply
   rot.coeffs() += 0.5f * (1.0f / GYRO_RATE) * (rot * w).coeffs();
   rot.normalize();
+
+  // This updates cos_zenith
+  set_rot(rot);
 }
 
-float FlightState::get_servo() {
-  // We can't extend beavs while until we are not accelerating aka the raw (gravity included) accelerometer reading is small
-  if (raw_acc_mag_sq > BEAVS_EXT_ACC * BEAVS_EXT_ACC) {
-    return 0.0f;
-  }
+void FlightState::load_flash(FlashState &&flash_state) {
+  state(0) = flash_state.h;
+  state(1) = flash_state.v;
 
-  // TODO: Lookup table
-  return 0.0f;
+  cov(0, 0) = flash_state.h_cov;
+  // The matrix is symmetric
+  cov(1, 0) = flash_state.hv_cov;
+  cov(0, 1) = flash_state.hv_cov;
+  cov(1, 1) = flash_state.v_cov;
+
+  // Since one axis is arbitrary we can just pick a vector such that its cos(angle) from vertical is cos_zenith
+  // This is based on LOCAL_UP (this init should be changed to be dependent on LOCAL_UP)
+  // NOTE: This depends on LOCAL_UP in state.h
+  // TODO: Check this math see LAUNCH_VEC
+  Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
+  Eigen::Vector3f flight_vec(0.0f, 1.0f - flash_state.cos_zenith, flash_state.cos_zenith);
+  set_rot(Eigen::Quaternionf::FromTwoVectors(flight_vec, up));
 }
 
-bool FlightState::done() {
-  // I believe IREC requires no flight controls at 30 degrees
+// NOTE: The code assumes that this function doesn't read rot
+void FlightState::set_rot(Eigen::Quaternionf new_rot) {
+  rot = new_rot;
+
   // We know that (0.0f, 0.0f -1.0f is up from the local frame
   // So transforming our local up to the global frame
   // So we see if the angle between true up and our local up is more than 30 degrees
   Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
   Eigen::Vector3f rocket_up = rot * LOCAL_UP;
+  cos_zenith = up.dot(rocket_up);
+}
 
-  // Since both are unit vectors we can use dot product to compute the cosine between them
+FlashState FlightState::get_flash() {
+  return FlashState(
+    state(0),
+    state(1),
+    cov(0, 0),
+    cov(1, 0), // Since the covariance is symmetric we only need one
+    cov(1, 1),
+    cos_zenith
+  );
+}
+
+// 0 percent servo is flush with the hull
+// TODO: Fix the angle being hardcoded, due to bugs
+float FlightState::get_servo() {
+  // We can't extend beavs while until we are not accelerating aka the raw (gravity included) accelerometer reading is small
+  if (forward_acc >= BEAVS_EXT_ACC) {
+    return 0.0f;
+  }
+
+  return index_table(state(0), 1.0, state(1)) * SERVO_MM_TO_PERCENT;
+}
+
+bool FlightState::done() {
+  // I believe IREC requires no flight controls at 30 degrees
   // Hopefully cos gets optimized
-  // TODO: This maybe shouldn't just be an immediate shutoff (although if we calculate 30 deg may be cooked anyway)
-  if (up.dot(rocket_up) < std::cos(30.0f * DEG_TO_RAD)) {
+  // NOTE: This maybe shouldn't just be an immediate shutoff (although if we calculate 30 deg may be cooked anyway)
+  if (cos_zenith < std::cos(30.0f * DEG_TO_RAD)) {
     return true;
   }
 
@@ -120,28 +155,32 @@ void RestState::push_buf(Measurement &&meas) {
   buf.push(meas);
 }
 
-void RestState::push_acc(Eigen::Vector3f &&acc, bool high_g) {
+void RestState::push_acc(Eigen::Vector3f acc, bool high_g) {
   push_buf(Measurement{acc, high_g, true});
 
   // If have an acceleration greater than launch acc we mark it by increasing
   //  launch_samples to count the amount we have recieved in a row
-  // If not we reset it to 0 since we has seen 0 in a row
   // It probably wouldn't matter to use a norm sqrd, but RestState is not performance sensitive
-  // TODO: Could be better to require some percentage of samples be launch detections
+  // Exponential moving average of the boolean values
+  launchiness *= (1.0f - LAUNCH_SAMPLE_DECAY);
+  launchiness_boot *= (1.0f - LAUNCH_SAMPLE_DECAY);
+
   if (std::abs(acc.norm() - GRAVITY_ACC) >= LAUNCH_ACC) {
-    launch_samples++;
-  } else {
-    launch_samples = 0;
+    launchiness += LAUNCH_SAMPLE_DECAY;
+  }
+
+  if (std::abs(acc.norm() - GRAVITY_ACC) >= LAUNCH_ACC_BOOT) {
+    launchiness_boot += LAUNCH_SAMPLE_DECAY;
   }
 }
 
-void RestState::push_gyro(Eigen::Vector3f &&gyro) {
+void RestState::push_gyro(Eigen::Vector3f gyro) {
   push_buf(Measurement{gyro, false, false});
 }
 
 bool RestState::try_init_flying(FlightState &state) {
   // If it is not launch time we just return early
-  if (launch_samples < LAUNCH_SAMPLE_REQ) {
+  if (launchiness <= LAUNCH_SAMPLE_REQ) {
     return false;
   }
 
@@ -156,7 +195,7 @@ bool RestState::try_init_flying(FlightState &state) {
 
   Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
 
-    // If there is no calibration readings (which shouldn't happen then we default to the launch rail angle)
+  // If there is no calibration readings (which shouldn't happen then we default to the launch rail angle)
   Eigen::Vector3f acc_vec(0.0f, 0.0f, 0.0f);
   decltype(rot_calib_buf)::index_t rot_samples_size = rot_calib_buf.size();
   if (rot_samples_size > 0) {
@@ -168,7 +207,7 @@ bool RestState::try_init_flying(FlightState &state) {
   }
 
   // The rotation that takes acc and turns it into down
-  state.rot = Eigen::Quaternionf::FromTwoVectors(acc_vec, up);
+  state.set_rot(Eigen::Quaternionf::FromTwoVectors(acc_vec, up));
 
   state.state = Eigen::Vector2f(START_HEIGHT, 0.0f);
   
@@ -178,15 +217,16 @@ bool RestState::try_init_flying(FlightState &state) {
   state.cov(1, 1) = START_V_ERROR;
 
   // Before launch we are experiencing the fictitious gravity acceleration
-  state.raw_acc_mag_sq = GRAVITY_ACC * GRAVITY_ACC;
+  state.forward_acc = GRAVITY_ACC;
 
   // Simulate the state getting this data
+  // This is quite expensive
   while (!buf.isEmpty()) {
     Measurement meas = buf.shift();
     if (meas.is_acc) {
-      state.push_acc(std::move(meas.data), meas.is_high_g);
+      state.push_acc(meas.data, meas.is_high_g);
     } else {
-      state.push_gyro(std::move(meas.data));
+      state.push_gyro(meas.data);
     }
 
     // This kinda violates the design principles
@@ -199,22 +239,22 @@ bool RestState::try_init_flying(FlightState &state) {
 // This runs in UNKOWN mode and if a flight is detected it means we have just booted
 bool RestState::try_init_flying_boot(FlightState &state) {
   // If it is not launch time we just return early
-  if (launch_samples < LAUNCH_SAMPLE_REQ) {
+  if (launchiness <= LAUNCH_SAMPLE_REQ_BOOT) {
     return false;
   }
 
   Eigen::Vector3f up(0.0f, 1.0f, 0.0f);
 
-  state.rot = Eigen::Quaternionf::FromTwoVectors(RAIL_VEC, up);
+  state.set_rot(Eigen::Quaternionf::FromTwoVectors(RAIL_VEC, up));
   state.state = Eigen::Vector2f(UNK_START_HEIGHT, UNK_START_VEL);
-  
+
   state.cov(0, 0) = UNK_START_H_ERROR;
   state.cov(0, 1) = UNK_START_VH_CORR;
   state.cov(1, 0) = UNK_START_VH_CORR;
   state.cov(1, 1) = UNK_START_V_ERROR;
 
   // We just set this to a value that will not allow beavs to extend immediately
-  state.raw_acc_mag_sq = (BEAVS_EXT_ACC * BEAVS_EXT_ACC) + 1.0f;
+  state.forward_acc = BEAVS_EXT_ACC;
 
   return true;
 }
