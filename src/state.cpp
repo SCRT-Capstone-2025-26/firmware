@@ -126,7 +126,8 @@ FlashState FlightState::get_flash() {
 float FlightState::get_servo() {
   // We clamp the servo because the lookup table internpolates huge values
   //  especially at the end this stosp the filter from being overpowered
-  float servo_percent = index_table(state(0), 1.0, state(1)) * SERVO_MM_TO_PERCENT;
+  // It turns out the best lookup table was 1 all along
+  float servo_percent = 1.0f; // index_table(state(0), 1.0, state(1)) * SERVO_MM_TO_PERCENT;
   servo_percent = max(min(servo_percent, 1.0f), 0.0f);
 
   // This interpolates between the two servo values based on the time
