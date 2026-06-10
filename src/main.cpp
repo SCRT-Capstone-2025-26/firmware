@@ -941,12 +941,7 @@ void loop1() {
   }
 
   if (board_mode == UNARMED) {
-    if (millis_in_mode() >= UNARMED_ACTIVE_TIME) {
-      sleep(1000);
-    } else {
-      int32_t current = sample_current();
-      update_servo(current);
-    }
+    sleep(1000);
 
     update_mode();
     return;
