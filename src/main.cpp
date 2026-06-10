@@ -517,7 +517,7 @@ void update_servo(int32_t current_milliamps) {
     float interp = std::exp(SERVO_SMOOTH_LN_MS * dt);
     flight_servo_percent = (flight_servo_percent * interp) + (servo_percent * (1.0f - interp));
     servo_percent = flight_servo_percent;
-  } else if (board_mode == UNARMED) {
+  } else if (board_mode == ARMED) {
     // Just a generic parabola (maxed with 0) to generate the full range of motion over a few seconds
     // It is 0 at 1500 and 4500 millis and peaks at 1 since it is 0 at 1500 millis that gives
     // the servo 1500 (and for servo to be powered after UNKNOWN) to zero since we don't know its position
