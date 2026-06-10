@@ -517,9 +517,20 @@ void update_servo(int32_t current_milliamps) {
 
   float servo_percent = 0.0f;
   if (board_mode == FLYING) {
-    // This is safety checked and smoothed
-    servo_percent = flight_state.get_servo();
-  } else if (board_mode == UNARMED) {
+    // We clamp the servo because the lookup table internpolates huge values
+    //  especially at the end this stosp the filter from being overpowered
+    servo_percent = max(min(flight_state.get_servo(), 1.0f), 0.0f);
+
+    // This interpolates between the two servo values based on the time
+    //  elapsed it is has a pretty heavy duty math, but we can afford it
+    Millis time = millis_in_mode();
+    Millis dt = time - flight_servo_last_ms;
+    flight_servo_last_ms = time;
+
+    float interp = std::exp(SERVO_SMOOTH_LN_MS * dt);
+    flight_servo_percent = (flight_servo_percent * interp) + (servo_percent * (1.0f - interp));
+    servo_percent = flight_servo_percent;
+  } else if (board_mode == ARMED) {
     // Just a generic parabola (maxed with 0) to generate the full range of motion over a few seconds
     // It is 0 at 1500 and 4500 millis and peaks at 1 since it is 0 at 1500 millis that gives
     // the servo 1500 (and for servo to be powered after UNKNOWN) to zero since we don't know its position
