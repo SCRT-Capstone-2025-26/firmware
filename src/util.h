@@ -104,6 +104,7 @@ Millis millis_in_mode();
 // This should work for anything less than about 35 minutes
 bool is_after(Micros a, Micros b);
 
+size_t bin_search(const float arr[], float target, size_t size);
 float linear_interp(float x, float x0, float x1, float y0, float y1);
 
 #endif

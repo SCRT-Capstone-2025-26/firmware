@@ -1,28 +1,104 @@
-#ifdef TEST
 #include "test.h"
-#include "test_data.h"
 
 #include "util.h"
+#include "logging.h"
+#include "hardware/timer.h"
+#include "hardware/regs/timer.h"
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <variant>
+#include <CircularBuffer.hpp>
 
-typedef struct Index {
-  size_t low;
-  float raw;
-} Index;
+#define COMMAND_BUF_SIZE 256
 
-Index time_index(Micros time) {
-  Index index;
-  index.raw = (float)time / micros_per_step;
-  index.low = min(time / micros_per_step, max_steps - 2);
+// This is maybe too big and slow
+// NOTE: It would be faster to have a buffer for each type of data
+//  like acc, hg_acc, baro ... This would make communication faster
+//  if it is needed
+struct __attribute__((packed)) StateCommand {
+  Micros time;
+
+  float acc_x;
+  float acc_y;
+  float acc_z;
+
+  float acc_x_noise;
+  float acc_y_noise;
+  float acc_z_noise;
+
+  float hg_acc_x;
+  float hg_acc_y;
+  float hg_acc_z;
+
+  float hg_acc_x_noise;
+  float hg_acc_y_noise;
+  float hg_acc_z_noise;
+
+  float gyro_x;
+  float gyro_y;
+  float gyro_z;
+
+  float gyro_x_noise;
+  float gyro_y_noise;
+  float gyro_z_noise;
+
+  float pressure;
+  float temperature;
+
+  float pressure_noise;
+  float temperature_noise;
+};
+
+struct __attribute__((packed)) DoneCommand {
+  Micros time;
+};
+
+// The data should be packed as it it written directly to a buffer
+typedef std::variant<StateCommand, DoneCommand> Command;
+
+typedef struct IndexedState {
+  StateCommand c1;
+  StateCommand c2;
+} IndexedState;
+
+#define INTERP_INDEX(name) linear_interp(time, index.c1.time, index.c2.time, index.c1.name, index.c2.name) + \
+  random(linear_interp(time, index.c1.time, index.c2.time, index.c1.name##_noise, index.c2.name##_noise))
+
+Micros offset = 0;
+std::atomic_bool done = false;
+std::atomic<Micros> done_time = 0;
+// Using a non-locking circular buffer may be better
+semaphore_t buf_sem;
+CircularBuffer<StateCommand, COMMAND_BUF_SIZE> buf;
+
+// buf must not be empty
+IndexedState time_index(Micros time) {
+  IndexedState index;
+
+  sem_acquire_blocking(&buf_sem);
+  // Binary search is now cringe mostly cause this buffer contains way more
+  //  non-important states since it only gets cleared when full
+  for (size_t i = 1; i < buf.size(); i++) {
+    if (buf[i].time <= time) {
+      index.c1 = buf[i];
+
+      if (i == 0) {
+        // Prevent a divide by zero on the intero
+        index.c2 = buf[i];
+        index.c2.time += 1;
+      } else {
+        index.c2 = buf[i - 1];
+      }
+
+      break;
+    }
+  }
+  sem_release(&buf_sem);
 
   return index;
-}
-
-float interp(Index index, const float *buf) {
-  return linear_interp(index.raw, index.low, index.low + 1, buf[index.low], buf[index.low + 1]);
 }
 
 // More advanced random should be used in the future
@@ -46,40 +122,119 @@ float random(float scale) {
 }
 
 void get_acc(Eigen::Vector3f *data, Micros time) {
-  Index index = time_index(time);
+  // The fifo could have old stuff
+  if (time < offset) { time = 0; } else { time -= offset; }
+  IndexedState index = time_index(time);
 
-  data->x() = interp(index, acc_x_data) + random(acc_noise);
-  data->y() = interp(index, acc_y_data) + random(acc_noise);
-  data->z() = interp(index, acc_z_data) + random(acc_noise);
+  data->x() = INTERP_INDEX(acc_x);
+  data->y() = INTERP_INDEX(acc_y);
+  data->z() = INTERP_INDEX(acc_z);
 }
 
 void get_hg_acc(Eigen::Vector3f *data, Micros time) {
-  Index index = time_index(time);
+  // The fifo could have old stuff
+  if (time < offset) { time = 0; } else { time -= offset; }
+  IndexedState index = time_index(time);
 
-  data->x() = interp(index, hg_acc_x_data) + random(hg_acc_noise);
-  data->y() = interp(index, hg_acc_y_data) + random(hg_acc_noise);
-  data->z() = interp(index, hg_acc_z_data) + random(hg_acc_noise);
+  data->x() = INTERP_INDEX(hg_acc_x);
+  data->y() = INTERP_INDEX(hg_acc_y);
+  data->z() = INTERP_INDEX(hg_acc_z);
 }
 
 void get_gyro(Eigen::Vector3f *data, Micros time) {
-  Index index = time_index(time);
+  // The fifo could have old stuff
+  if (time < offset) { time = 0; } else { time -= offset; }
+  IndexedState index = time_index(time);
 
-  data->x() = interp(index, gyro_x_data) + random(gyro_noise);
-  data->y() = interp(index, gyro_y_data) + random(gyro_noise);
-  data->z() = interp(index, gyro_z_data) + random(gyro_noise);
+  data->x() = INTERP_INDEX(gyro_x);
+  data->y() = INTERP_INDEX(gyro_y);
+  data->z() = INTERP_INDEX(gyro_z);
 }
 
 // The temperature will be slightly off using this since they are actually sampled at different times
 void get_baro(float *pressure, float *temperature) {
-  Index index = time_index(micros());
+  Micros time = micros() - offset;
+  IndexedState index = time_index(time);
 
-  *pressure = interp(index, pres_data) + random(baro_noise);
-  // Currently no temp noise
-  *temperature = interp(index, temp_data);
+  *pressure = INTERP_INDEX(pressure);
+  *temperature = INTERP_INDEX(temperature);
 }
 
 bool get_reboot() {
-  return micros() >= max_steps * micros_per_step;
+  return done && micros() - offset >= done_time;
 }
-#endif
+
+void send_ack() {
+  Serial.write('K');
+  Serial.write('6');
+  Serial.write('7');
+}
+
+void init_debug() {
+  sem_init(&buf_sem, 1, 1);
+
+  // Get the start state
+  while (buf.size() == 0) {
+    read_debug();
+  }
+
+  offset = micros();
+}
+
+void read_debug() {
+  int desc = Serial.peek();
+
+  StateCommand state_command;
+  DoneCommand done_command;
+  String message;
+  switch (desc) {
+    case 'S':
+      // The serial buffer is expanded in TEST mode so state_command can fit
+      if (Serial.available() < sizeof(state_command) + 1) {
+        break;
+      }
+
+      Serial.read();
+      Serial.readBytes((char *)&state_command, sizeof(state_command));
+
+      sem_acquire_blocking(&buf_sem);
+      buf.unshift(state_command);
+      sem_release(&buf_sem);
+
+      break;
+    case 'D':
+      if (Serial.available() < sizeof(done_command) + 1) {
+        break;
+      }
+
+      Serial.read();
+      Serial.readBytes((char *)&done_command, sizeof(done_command));
+
+      done_time = done_command.time;
+      done = true;
+
+      break;
+    case 'P':
+      Serial.read();
+      send_ack();
+
+      break;
+    case 'R':
+      watchdog_reboot(0, 0, 0);
+
+      break;
+    case 'M':
+      Serial.read();
+      message = Serial.readStringUntil('\0');
+      log_message("Recieved message: " + message);
+
+      break;
+    case -1:
+      break;
+    default:
+      Serial.read();
+      log_message("Debug read failure");
+      break;
+  }
+}
 

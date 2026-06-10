@@ -35,7 +35,7 @@ SOFTWARE.
 /// Implement FIFO type queue that use array as ringbuffer
 /// to store messages.
 ///
-template <class T, uint8_t s=8>
+template <class T, uint32_t s=8>
 class EventQueue{
 public:
     EventQueue(): _in(0), _out(0), _count(0), _s(s) {
@@ -62,8 +62,8 @@ public:
     }
 
     // Insert item to queue.
-    bool putQ(const T &&e, uint8_t usr_limit=UINT8_MAX){
-        uint8_t limit = min(usr_limit, _s);
+    bool putQ(const T &&e, uint32_t usr_limit=UINT8_MAX){
+        uint32_t limit = min(usr_limit, _s);
 
         bool rc = false;
 
@@ -84,12 +84,12 @@ public:
 
 private:
     // Old stuff
-    uint8_t _in;
-    uint8_t _out;
+    uint32_t _in;
+    uint32_t _out;
     // This is the actual number of items in the queue
     //  and should only be change when the thread has the rw lock
-    uint8_t _count;
-    const    uint8_t _s;
+    uint32_t _count;
+    const    uint32_t _s;
     T       _queue[s];
 
     // New

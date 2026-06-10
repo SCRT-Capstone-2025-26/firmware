@@ -6,6 +6,7 @@
 #include "logging.h"
 #include "eventqueue.h"
 #include "pins.h"
+#include "test.h"
 #include "util.h"
 
 // How many ms between a log of the given type at most
@@ -19,14 +20,18 @@
 #define ROT_RATE_LIM  50
 
 // The size of the event buffer
-#define EVENT_BUF_LIMIT 255
+#define EVENT_BUF_LIMIT 1024
 // The amount of the event buffer filled where log messages stop being added
 //  this prevents log spam from stopping data being written in theory
 #define LOG_BUF_LIMIT   (EVENT_BUF_LIMIT / 2)
 
 // This is to feed the Arduino stuff I believe
 //  that runs outside of the loop. I don't think this is needed
+#ifdef TEST
+#define EVENT_TIMEOUT 1
+#else
 #define EVENT_TIMEOUT 5
+#endif
 
 // This file handles the code that runs on the other core and handles the logging for Beavs
 
@@ -140,6 +145,16 @@ void setup() {
   Serial.begin(115200);
   log_message("Serial inited");
 
+#ifdef TEST
+  while (!Serial) {
+    delay(100);
+  }
+
+  // If the init fails then we can continue since it may just cause
+  //  the test to have a bit of undefined readings
+  init_debug();
+#endif
+
   // Try to init the file we just assume that the file is not inited
   //  until the files are created and written to
   bool file_inited = false;
@@ -157,8 +172,8 @@ void setup() {
     // TODO: This should be fixed at least for release mode
     for (int i = 0; i < INT_MAX; i++) {
 #ifdef TEST
-      String log_path = "Logs/log_test_" TEST_ID "_" + String(i) + ".txt";
-      String data_path = "Data/data_test_" TEST_ID "_" + String(i) + ".bin";
+      String log_path = "Logs/log_test_" + String(i) + ".txt";
+      String data_path = "Data/data_test_" + String(i) + ".bin";
 #else
       String log_path = "Logs/log_" + String(i) + ".txt";
       String data_path = "Data/data_" + String(i) + ".bin";
@@ -201,7 +216,13 @@ void write_log(String content) {
     log_file.println(content);
   }
 
+#ifdef TEST
+  Serial.write('L');
+#endif
   Serial.println(content);
+#ifdef TEST
+  Serial.write('\0');
+#endif
 }
 
 // Handles a log event converting it into something usable
@@ -220,22 +241,28 @@ void handle_log_event(LogEvent event) {
   write_log("[time: " + String(event.timestamp) + "ms, core: " + String(event.core) + "] " + content);
 }
 
-void handle_calib(DataEvent data) {
-  if (!sd_failure) {
-    const auto [id, size] = match(data.value,
-      [](Acc data) { return std::make_tuple('A', sizeof(data)); },
-      [](Gyro data) { return std::make_tuple('G', sizeof(data)); },
-      [](Baro data) { return std::make_tuple('B', sizeof(data)); },
-      [](Servo data) { return std::make_tuple('S', sizeof(data)); },
-      [](Current data) { return std::make_tuple('C', sizeof(data)); },
-      [](FilterState data) { return std::make_tuple('F', sizeof(data)); },
-      [](RotState data) { return std::make_tuple('R', sizeof(data)); }
-    );
+void handle_data(DataEvent data) {
+  const auto [id, size] = match(data.value,
+    [](Acc data) { return std::make_tuple('A', sizeof(data)); },
+    [](Gyro data) { return std::make_tuple('G', sizeof(data)); },
+    [](Baro data) { return std::make_tuple('B', sizeof(data)); },
+    [](Servo data) { return std::make_tuple('S', sizeof(data)); },
+    [](Current data) { return std::make_tuple('C', sizeof(data)); },
+    [](FilterState data) { return std::make_tuple('F', sizeof(data)); },
+    [](RotState data) { return std::make_tuple('R', sizeof(data)); }
+  );
 
+  if (!sd_failure) {
     data_file.write(id);
     data_file.write(&data.timestamp, sizeof(data.timestamp));
     data_file.write(&data.value, size);
   }
+
+#ifdef TEST
+  Serial.write(id);
+  Serial.write((char *)&data.timestamp, sizeof(data.timestamp));
+  Serial.write((char *)&data.value, size);
+#endif
 }
 
 // Just empties the log queue
@@ -255,6 +282,10 @@ void loop() {
     }
   }
 
+#ifdef TEST
+  read_debug();
+#endif
+
   // Check if there was an overflow in the event queue
   if (log_write_fail) {
     // Set this false first to catch more overflows
@@ -271,6 +302,6 @@ void loop() {
   }
 
   // I don't know why the lambdas are needed
-  match(event, [](LogEvent event) { handle_log_event(event); }, [](DataEvent event) { handle_calib(event); });
+  match(event, [](LogEvent event) { handle_log_event(event); }, [](DataEvent event) { handle_data(event); });
 }
 

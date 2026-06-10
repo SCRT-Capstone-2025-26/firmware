@@ -35,16 +35,6 @@
 #define SERVO_DUTY_MIN 0.76f
 #define SERVO_DUTY_MAX 0.6f
 
-// The exponential decay for the servo during flight
-//  p = (SERVO_SMOOTH * p) + ((1 - SERVO_SMOOTH) * new_p)
-//  This formula assumes a sample every second the real formula does not
-// To prevent jittery servo
-// TODO: Determine
-#define SERVO_SMOOTH 0.8
-// Get servo smooth into more favourable units
-// This should be compile time const
-#define SERVO_SMOOTH_LN_MS (std::log(SERVO_SMOOTH) * 0.001f)
-
 // NOTE: The FS and senstivities are linked, but because the library is strange we have to include
 //  them twice
 // TODO: Determine these
@@ -113,8 +103,6 @@ FlightState flight_state = FlightState();
 RestState rest_state = RestState();
 
 bool servo_powered = false;
-float flight_servo_percent;
-Millis flight_servo_last_ms;
 
 Micros baro_read_time;
 BaroState baro_state = IDLE;
@@ -196,6 +184,53 @@ bool try_power_servo() {
   return true;
 }
 
+// This is called when the board confirms that it has booted an is on the ground waiting to launch
+// It could take some time to run (because it waits for the log core), but it shouldn't because the
+//  log core should boot fast
+void ground_boot() {
+  log_message("Waiting on log core");
+  // Wait for the other core to finish booting
+  // This returns when the other core has booted with whether it has created log files
+  bool sd_failure = wait_log_boot();
+  // If there is an SD failure mark that (it is not critical though).
+  // Since the function returned the other core has booted and we can continue
+  log_message("Log core booted");
+  if (!sd_failure) { log_message("SD inited"); }
+  leds[LED_SD] = sd_failure ? LED_NEGATIVE : LED_POSITIVE;
+  led_show();
+
+  log_message("Clearing flash");
+  // We mess with the watchdog here since this could take a long time and we are on the ground and safe
+  watchdog_enable(WATCHDOG_MS_CLEAR_FLASH, 1);
+  // If flash isn't working we don't care
+  if (!clear_flash_buf()) { note_error("Flash clear Failed", DO_NOTHING_ERR); }
+  watchdog_enable(WATCHDOG_MS, 1);
+
+  log_message("Clearing FIFO");
+  // We then clear the fifo since it can get filled up on a boot
+  uint16_t samples;
+  if (imu.FIFO_Get_Num_Samples(&samples) != ISM6HG256X_OK) {
+    note_error("Sample read failed in boot", DO_NOTHING_ERR);
+    samples = 0;
+  }
+
+  uint8_t tag;
+  int16_t reading_data[3];
+  for (uint16_t i = 0; i < samples; i++) {
+    if (imu.FIFO_Get_Tag(&tag) != ISM6HG256X_OK) {
+      note_error("Tag read failed in boot", DO_NOTHING_ERR);
+      break;
+    }
+
+    if (imu.FIFO_Get_Data((uint8_t *)reading_data) != ISM6HG256X_OK) {
+      note_error("Data read failed in boot", DO_NOTHING_ERR);
+      break;
+    }
+
+    watchdog_update();
+  }
+}
+
 // NOTE: Init values are temporary and will be determined by data later
 void setup1() {
 #ifdef DEBUG
@@ -260,15 +295,6 @@ void setup1() {
 #ifdef TEST
   #warning Board is in TEST mode
   log_message("Board is in TEST mode");
-
-  // We only want to run tests if the board has been rebooted to stop running
-  //  test immediatly when the board is plugged in to reflash
-  if (!reboot) {
-    // It seems like the LEDs need a bit of time to boot up
-    sleep(1);
-    led_show();
-    while (true) { sleep(1000); }
-  }
 #endif
 
   // Initialize the LED the rp2040 has two SPIs and we init the first one to be able to communicate to the sensors
@@ -343,7 +369,6 @@ void setup1() {
   Wire.setClock(100000);
   Wire.begin();
 
-
   bool current_sens_failed = false;
   if (current_sensor.begin() != INA_SUCCESS) {
     log_message("Current sensor init failed");
@@ -351,6 +376,10 @@ void setup1() {
   }
 
   leds[LED_CURRENT] = current_sens_failed ? LED_NEGATIVE : LED_POSITIVE;
+
+#ifdef TEST
+  ground_boot();
+#endif
 
   if (baro_init && imu_init && !current_sens_failed) {
     // The board is now ready
@@ -368,29 +397,6 @@ void setup1() {
   }
 
   // The 1 means it plays nice with the debugger
-  watchdog_enable(WATCHDOG_MS, 1);
-}
-
-// This is called when the board confirms that it has booted an is on the ground waiting to launch
-// It could take some time to run (because it waits for the log core), but it shouldn't because the
-//  log core should boot fast
-void ground_boot() {
-  log_message("Waiting on log core");
-  // Wait for the other core to finish booting
-  // This returns when the other core has booted with whether it has created log files
-  bool sd_failure = wait_log_boot();
-  // If there is an SD failure mark that (it is not critical though).
-  // Since the function returned the other core has booted and we can continue
-  log_message("Log core booted");
-  if (!sd_failure) { log_message("SD inited"); }
-  leds[LED_SD] = sd_failure ? LED_NEGATIVE : LED_POSITIVE;
-  led_show();
-
-  log_message("Clearing flash");
-  // We mess with the watchdog here since this could take a long time and we are on the ground and safe
-  watchdog_enable(WATCHDOG_MS_CLEAR_FLASH, 1);
-  // If flash isn't working we don't care
-  if (!clear_flash_buf()) { note_error("Flash clear Failed", DO_NOTHING_ERR); }
   watchdog_enable(WATCHDOG_MS, 1);
 }
 
@@ -413,15 +419,22 @@ void update_mode() {
           note_error("Flash reinit failed", DO_NOTHING_ERR);
         }
       } else if (millis_in_mode() >= UNKNOWN_WAIT) {
-        push_mode(UNARMED);
+#ifndef TEST
         ground_boot();
+#endif
+        push_mode(ARMED);
       }
 
       break;
 
     case UNARMED:
+      imu.Disable_G();
+      imu.Disable_HG_X();
+
       if (digitalRead(ARM_SWITCH) == ARM_ON) {
-        push_mode(ARMED);
+        // It should go to armed, but we reboot instead to make sure everything is inited properly
+        //  this also provides a way to reboot the board from outside the rocket with the arming pin
+        watchdog_reboot(0, 0, 0);
       }
 
       break;
@@ -448,6 +461,8 @@ void update_mode() {
       break;
 
     case DONE:
+      // TODO: Maybe done to UNARMED in edge case to reboot board if there is
+      //  a false flight detection
       break;
 
     case FAILURE:
@@ -461,9 +476,6 @@ void update_mode() {
 
   if (board_mode != old_mode && board_mode == FLYING) {
     Millis next_flash_write = 0;
-
-    flight_servo_percent = 0.0f;
-    flight_servo_last_ms = 0;
   }
 
   watchdog_update();
@@ -485,8 +497,10 @@ void update_servo(int32_t current_milliamps) {
     return;
   }
 
-  if (board_mode == UNARMED || board_mode == ARMED) {
-    // Don't waste power
+  // Don't waste power if in a ground mode, but to do the demo
+  // NOTE: We could also do something like this for DONE mode to prevent the board
+  //  dying after flight
+  if (board_mode == UNARMED || (board_mode == ARMED && 6000 < millis_in_mode())) {
     if (!servo.setPWM(MAIN_SERVO, SERVO_FREQ, 0.0f)) {
       note_error("PWM config error", FAIL_NOW_ERR);
     }
@@ -495,20 +509,9 @@ void update_servo(int32_t current_milliamps) {
 
   float servo_percent = 0.0f;
   if (board_mode == FLYING) {
-    // We clamp the servo because the lookup table internpolates huge values
-    //  especially at the end this stosp the filter from being overpowered
-    servo_percent = max(min(flight_state.get_servo(), 1.0f), 0.0f);
-
-    // This interpolates between the two servo values based on the time
-    //  elapsed it is has a pretty heavy duty math, but we can afford it
-    Millis time = millis_in_mode();
-    Millis dt = time - flight_servo_last_ms;
-    flight_servo_last_ms = time;
-
-    float interp = std::exp(SERVO_SMOOTH_LN_MS * dt);
-    flight_servo_percent = (flight_servo_percent * interp) + (servo_percent * (1.0f - interp));
-    servo_percent = flight_servo_percent;
-  } else if (board_mode == UNARMED) {
+    // This is safety checked and smoothed
+    servo_percent = flight_state.get_servo();
+  } else if (board_mode == ARMED) {
     // Just a generic parabola (maxed with 0) to generate the full range of motion over a few seconds
     // It is 0 at 1500 and 4500 millis and peaks at 1 since it is 0 at 1500 millis that gives
     // the servo 1500 (and for servo to be powered after UNKNOWN) to zero since we don't know its position
@@ -711,6 +714,7 @@ void sample_imu() {
   uint16_t samples;
   if (imu.FIFO_Get_Num_Samples(&samples) != ISM6HG256X_OK) {
     note_error("Sample read failed", IMU_ERR);
+    watchdog_update();
     return;
   }
 
@@ -887,6 +891,8 @@ int32_t sample_current() {
 // NOTE: This can be called before the watchdog is initialized
 void do_failure() {
 #ifndef DEBUG
+  // Let the log buffer clear then reboot
+  sleep(1000);
   watchdog_reboot(0, 0, 0);
 #else
   watchdog_disable();
@@ -925,9 +931,22 @@ void flash_save() {
 //  ready (this would mess with the flash write rate if not done well). The
 //  loop may be fast enough it doesn't matter
 void loop1() {
+#ifdef TEST
+  if (get_reboot()) {
+    watchdog_reboot(0, 0, 0);
+  }
+#endif
+
   // If we have reached critical failure then we return early
   if (board_mode == FAILURE) {
     do_failure();
+    return;
+  }
+
+  if (board_mode == UNARMED) {
+    sleep(1000);
+
+    update_mode();
     return;
   }
 
@@ -963,11 +982,5 @@ void loop1() {
   }
 
   watchdog_update();
-
-#ifdef TEST
-  if (get_reboot()) {
-    watchdog_reboot(0, 0, 0);
-  }
-#endif
 }
 
