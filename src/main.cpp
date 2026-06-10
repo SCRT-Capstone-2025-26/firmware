@@ -497,8 +497,10 @@ void update_servo(int32_t current_milliamps) {
     return;
   }
 
-  if (board_mode == UNARMED || board_mode == ARMED) {
-    // Don't waste power
+  // Don't waste power if in a ground mode, but to do the demo
+  // NOTE: We could also do something like this for DONE mode to prevent the board
+  //  dying after flight
+  if (board_mode == UNARMED || (board_mode == ARMED && 6000 < millis_in_mode())) {
     if (!servo.setPWM(MAIN_SERVO, SERVO_FREQ, 0.0f)) {
       note_error("PWM config error", FAIL_NOW_ERR);
     }
