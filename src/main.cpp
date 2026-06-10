@@ -35,16 +35,6 @@
 #define SERVO_DUTY_MIN 0.76f
 #define SERVO_DUTY_MAX 0.6f
 
-// The exponential decay for the servo during flight
-//  p = (SERVO_SMOOTH * p) + ((1 - SERVO_SMOOTH) * new_p)
-//  This formula assumes a sample every second the real formula does not
-// To prevent jittery servo
-// TODO: Determine
-#define SERVO_SMOOTH 0.8
-// Get servo smooth into more favourable units
-// This should be compile time const
-#define SERVO_SMOOTH_LN_MS (std::log(SERVO_SMOOTH) * 0.001f)
-
 // NOTE: The FS and senstivities are linked, but because the library is strange we have to include
 //  them twice
 // TODO: Determine these
@@ -517,19 +507,8 @@ void update_servo(int32_t current_milliamps) {
 
   float servo_percent = 0.0f;
   if (board_mode == FLYING) {
-    // We clamp the servo because the lookup table internpolates huge values
-    //  especially at the end this stosp the filter from being overpowered
-    servo_percent = max(min(flight_state.get_servo(), 1.0f), 0.0f);
-
-    // This interpolates between the two servo values based on the time
-    //  elapsed it is has a pretty heavy duty math, but we can afford it
-    Millis time = millis_in_mode();
-    Millis dt = time - flight_servo_last_ms;
-    flight_servo_last_ms = time;
-
-    float interp = std::exp(SERVO_SMOOTH_LN_MS * dt);
-    flight_servo_percent = (flight_servo_percent * interp) + (servo_percent * (1.0f - interp));
-    servo_percent = flight_servo_percent;
+    // This is safety checked and smoothed
+    servo_percent = flight_state.get_servo();
   } else if (board_mode == ARMED) {
     // Just a generic parabola (maxed with 0) to generate the full range of motion over a few seconds
     // It is 0 at 1500 and 4500 millis and peaks at 1 since it is 0 at 1500 millis that gives
