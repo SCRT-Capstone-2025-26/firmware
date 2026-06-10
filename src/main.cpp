@@ -444,7 +444,7 @@ void update_mode() {
       if (digitalRead(ARM_SWITCH) == ARM_ON) {
         // It should go to armed, but we reboot instead to make sure everything is inited properly
         //  this also provides a way to reboot the board from outside the rocket with the arming pin
-        reboot();
+        watchdog_reboot(0, 0, 0);
       }
 
       break;
