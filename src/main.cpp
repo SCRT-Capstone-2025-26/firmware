@@ -35,6 +35,16 @@
 #define SERVO_DUTY_MIN 0.76f
 #define SERVO_DUTY_MAX 0.6f
 
+// The exponential decay for the servo during flight
+//  p = (SERVO_SMOOTH * p) + ((1 - SERVO_SMOOTH) * new_p)
+//  This formula assumes a sample every second the real formula does not
+// To prevent jittery servo
+// TODO: Determine
+#define SERVO_SMOOTH 0.8
+// Get servo smooth into more favourable units
+// This should be compile time const
+#define SERVO_SMOOTH_LN_MS (std::log(SERVO_SMOOTH) * 0.001f)
+
 // NOTE: The FS and senstivities are linked, but because the library is strange we have to include
 //  them twice
 // TODO: Determine these
@@ -419,17 +429,22 @@ void update_mode() {
           note_error("Flash reinit failed", DO_NOTHING_ERR);
         }
       } else if (millis_in_mode() >= UNKNOWN_WAIT) {
-        push_mode(UNARMED);
 #ifndef TEST
         ground_boot();
 #endif
+        push_mode(ARMED);
       }
 
       break;
 
     case UNARMED:
+      imu.Disable_G();
+      imu.Disable_HG_X();
+
       if (digitalRead(ARM_SWITCH) == ARM_ON) {
-        push_mode(ARMED);
+        // It should go to armed, but we reboot instead to make sure everything is inited properly
+        //  this also provides a way to reboot the board from outside the rocket with the arming pin
+        reboot();
       }
 
       break;
@@ -456,6 +471,8 @@ void update_mode() {
       break;
 
     case DONE:
+      // TODO: Maybe done to UNARMED in edge case to reboot board if there is
+      //  a false flight detection
       break;
 
     case FAILURE:
@@ -931,6 +948,18 @@ void loop1() {
   // If we have reached critical failure then we return early
   if (board_mode == FAILURE) {
     do_failure();
+    return;
+  }
+
+  if (board_mode == UNARMED) {
+    if (millis_in_mode() >= UNARMED_ACTIVE_TIME) {
+      sleep(1000);
+    } else {
+      int32_t current = sample_current();
+      update_servo(current);
+    }
+
+    update_mode();
     return;
   }
 
